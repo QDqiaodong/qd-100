@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: docker.m.daocloud.io/library/mysql:8.0
+    image: ${DOCKER_REGISTRY:-docker.m.daocloud.io}/library/mysql:8.0
     container_name: shortvideo-mysql
     environment:
       MYSQL_ROOT_PASSWORD: password
@@ -19,7 +19,7 @@ services:
       retries: 5
 
   redis:
-    image: docker.m.daocloud.io/library/redis:7.0
+    image: ${DOCKER_REGISTRY:-docker.m.daocloud.io}/library/redis:7.0
     container_name: shortvideo-redis
     ports:
       - "6380:6379"
@@ -32,7 +32,7 @@ services:
       retries: 5
 
   minio:
-    image: docker.m.daocloud.io/minio/minio:latest
+    image: ${DOCKER_REGISTRY:-docker.m.daocloud.io}/minio/minio:latest
     container_name: shortvideo-minio
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -50,7 +50,7 @@ services:
       retries: 5
 
   minio-init:
-    image: docker.m.daocloud.io/minio/mc:latest
+    image: ${DOCKER_REGISTRY:-docker.m.daocloud.io}/minio/mc:latest
     container_name: shortvideo-minio-init
     depends_on:
       minio:
@@ -71,6 +71,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY:-docker.m.daocloud.io}
     container_name: shortvideo-backend
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/shortvideo?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
@@ -97,6 +99,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY:-docker.m.daocloud.io}
     container_name: shortvideo-frontend
     ports:
       - "5173:80"

@@ -88,3 +88,13 @@ export interface WatchProgress {
   isCompleted: boolean
   updatedAt: string
 }
+
+export interface VideoMilestone {
+  id: string
+  videoId: string
+  title: string
+  description: string
+  timestampSeconds: number
+  sortOrder: number
+  createdAt: string
+}

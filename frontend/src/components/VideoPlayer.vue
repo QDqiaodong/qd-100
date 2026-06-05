@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { Heart, Bookmark, MessageCircle, Share2, Volume2, VolumeX, Maximize, Pause, Play } from 'lucide-vue-next'
-import type { Video, Comment } from '@/types'
+import { Heart, Bookmark, MessageCircle, Share2, Volume2, VolumeX, Maximize, Pause, Play, Flag } from 'lucide-vue-next'
+import type { Video, Comment, VideoMilestone } from '@/types'
 import { videoApi } from '@/api'
 
 const props = defineProps<{
@@ -33,6 +33,8 @@ const progressSaveInterval = ref<number | null>(null)
 const userId = '1'
 const videoLoading = ref(true)
 const videoError = ref(false)
+const milestones = ref<VideoMilestone[]>([])
+const hoveredMilestone = ref<VideoMilestone | null>(null)
 
 function togglePlay() {
   if (videoRef.value) {
@@ -110,6 +112,36 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
+function jumpToMilestone(timestamp: number) {
+  if (videoRef.value && duration.value > 0 && timestamp >= 0 && timestamp <= duration.value) {
+    videoRef.value.currentTime = timestamp
+    currentTime.value = timestamp
+  }
+}
+
+function handleMilestoneClick(e: MouseEvent, milestone: VideoMilestone) {
+  e.stopPropagation()
+  jumpToMilestone(milestone.timestampSeconds)
+}
+
+function handleMilestoneMouseEnter(e: MouseEvent, milestone: VideoMilestone) {
+  e.stopPropagation()
+  hoveredMilestone.value = milestone
+}
+
+function handleMilestoneMouseLeave(e: MouseEvent) {
+  e.stopPropagation()
+  hoveredMilestone.value = null
+}
+
+function loadMilestones() {
+  videoApi.getVideoMilestones(props.video.id).then(res => {
+    milestones.value = res.data.data
+  }).catch(err => {
+    console.error('Failed to load milestones:', err)
+  })
+}
+
 function handleLike() {
   videoApi.likeVideo(props.video.id).then(res => {
     liked.value = res.data.data.liked
@@ -172,6 +204,7 @@ function resetControlsTimeout() {
 watch(() => props.video, (newVideo) => {
   likeCount.value = newVideo.likeCount
   favoriteCount.value = newVideo.favoriteCount
+  loadMilestones()
 })
 
 watch(() => props.startTime, (newTime) => {
@@ -185,6 +218,7 @@ onMounted(() => {
   videoApi.getComments(props.video.id).then(res => {
     comments.value = res.data.data
   })
+  loadMilestones()
 })
 
 onUnmounted(() => {
@@ -274,8 +308,30 @@ onUnmounted(() => {
               class="h-full bg-primary rounded-full"
               :style="{ width: `${(currentTime / duration) * 100}%` }"
             />
+            
             <div 
-              class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+              v-for="milestone in milestones" 
+              :key="milestone.id"
+              class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-yellow-400 rounded-full cursor-pointer z-10 hover:scale-150 transition-transform shadow-md"
+              :style="{ left: `${(milestone.timestampSeconds / duration) * 100}%`, transform: 'translate(-50%, -50%)' }"
+              :title="milestone.title"
+              @click.stop="handleMilestoneClick($event, milestone)"
+              @mouseenter.stop="handleMilestoneMouseEnter($event, milestone)"
+              @mouseleave.stop="handleMilestoneMouseLeave($event)"
+            />
+            
+            <div 
+              v-if="hoveredMilestone"
+              class="absolute -top-10 left-0 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none z-20"
+              :style="{ left: `${(hoveredMilestone.timestampSeconds / duration) * 100}%` }"
+            >
+              <div class="font-medium">{{ hoveredMilestone.title }}</div>
+              <div class="text-white/70">{{ formatTime(hoveredMilestone.timestampSeconds) }}</div>
+              <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-black/90 rotate-45" />
+            </div>
+            
+            <div 
+              class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20"
               :style="{ left: `${(currentTime / duration) * 100}%`, transform: 'translate(-50%, -50%)' }"
             />
           </div>
@@ -369,6 +425,26 @@ onUnmounted(() => {
         >
           #{{ tag }}
         </span>
+      </div>
+      
+      <div v-if="milestones.length > 0" class="mb-4">
+        <div class="flex items-center gap-2 mb-2">
+          <Flag class="w-4 h-4 text-yellow-400" />
+          <span class="text-white text-sm font-medium">关键时刻</span>
+        </div>
+        <div class="space-y-1 max-h-32 overflow-y-auto">
+          <div 
+            v-for="milestone in milestones" 
+            :key="milestone.id"
+            class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-white/10 transition-colors"
+            :class="{ 'bg-white/10': currentTime >= milestone.timestampSeconds && (milestones.indexOf(milestone) === milestones.length - 1 || currentTime < milestones[milestones.indexOf(milestone) + 1].timestampSeconds) }"
+            @click.stop="jumpToMilestone(milestone.timestampSeconds)"
+          >
+            <div class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" />
+            <span class="text-white/90 text-sm flex-1 truncate">{{ milestone.title }}</span>
+            <span class="text-white/50 text-xs">{{ formatTime(milestone.timestampSeconds) }}</span>
+          </div>
+        </div>
       </div>
       
       <div class="bg-white/10 rounded-lg p-3">

@@ -80,6 +80,19 @@ CREATE TABLE IF NOT EXISTS watch_progress (
     FOREIGN KEY (video_id) REFERENCES videos(id)
 );
 
+CREATE TABLE IF NOT EXISTS video_milestones (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    video_id BIGINT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    timestamp_seconds INT NOT NULL,
+    sort_order INT DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (video_id) REFERENCES videos(id),
+    INDEX idx_video_id (video_id)
+);
+
 INSERT INTO users (username, email, password, bio, followers, following) VALUES 
 ('testuser', 'test@example.com', 'password', '这是一个测试用户', 100, 50);
 
@@ -106,3 +119,18 @@ INSERT INTO watch_progress (user_id, video_id, progress_seconds, is_completed) V
 (1, 2, 7, FALSE),
 (1, 3, 10, TRUE),
 (1, 5, 3, FALSE);
+
+INSERT INTO video_milestones (video_id, title, description, timestamp_seconds, sort_order) VALUES 
+(1, '准备食材', '准备五花肉、调料等食材', 10, 1),
+(1, '焯水去腥', '将五花肉焯水去除血沫', 30, 2),
+(1, '炒糖色', '冰糖炒制焦糖色', 50, 3),
+(1, '炖煮入味', '小火慢炖让肉入味', 80, 4),
+(1, '收汁出锅', '大火收汁即可出锅', 110, 5),
+(3, '热身运动', '开始前的热身准备', 2, 1),
+(3, '核心训练', '腹部核心肌群训练', 5, 2),
+(3, '拉伸放松', '训练后的拉伸放松', 8, 3),
+(4, '环境搭建', '开发环境的安装与配置', 15, 1),
+(4, 'Hello World', '第一个程序编写', 40, 2),
+(4, '变量与类型', '讲解变量和数据类型', 70, 3),
+(4, '条件语句', 'if-else 语句详解', 95, 4),
+(4, '循环结构', 'for 和 while 循环', 115, 5);

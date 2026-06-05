@@ -3,6 +3,7 @@ package com.example.shortvideo.controller;
 import com.example.shortvideo.dto.response.ApiResponse;
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
+import com.example.shortvideo.dto.response.VideoMilestoneDTO;
 import com.example.shortvideo.dto.response.WatchProgressDTO;
 import com.example.shortvideo.entity.Video;
 import com.example.shortvideo.service.MinIOService;
@@ -154,4 +155,53 @@ public class VideoController {
     public record UploadResult(Long id, String status) {}
     
     public record WatchProgressRequest(Long userId, Integer currentTime) {}
+
+    @GetMapping("/{id}/milestones")
+    public ApiResponse<List<VideoMilestoneDTO>> getVideoMilestones(@PathVariable Long id) {
+        List<VideoMilestoneDTO> milestones = videoService.getVideoMilestones(id);
+        return ApiResponse.success(milestones);
+    }
+
+    @PostMapping("/{id}/milestones")
+    public ApiResponse<VideoMilestoneDTO> createVideoMilestone(
+            @PathVariable Long id,
+            @RequestBody MilestoneRequest request) {
+
+        VideoMilestoneDTO milestone = videoService.createVideoMilestone(
+                id, request.title(), request.description(),
+                request.timestampSeconds(), request.sortOrder());
+        if (milestone == null) {
+            return ApiResponse.error(404, "视频不存在");
+        }
+        return ApiResponse.success(milestone);
+    }
+
+    @PutMapping("/milestones/{milestoneId}")
+    public ApiResponse<VideoMilestoneDTO> updateVideoMilestone(
+            @PathVariable Long milestoneId,
+            @RequestBody MilestoneRequest request) {
+
+        VideoMilestoneDTO milestone = videoService.updateVideoMilestone(
+                milestoneId, request.title(), request.description(),
+                request.timestampSeconds(), request.sortOrder());
+        if (milestone == null) {
+            return ApiResponse.error(404, "关键时刻不存在");
+        }
+        return ApiResponse.success(milestone);
+    }
+
+    @DeleteMapping("/milestones/{milestoneId}")
+    public ApiResponse<Void> deleteVideoMilestone(@PathVariable Long milestoneId) {
+        boolean deleted = videoService.deleteVideoMilestone(milestoneId);
+        if (!deleted) {
+            return ApiResponse.error(404, "关键时刻不存在");
+        }
+        return ApiResponse.success(null);
+    }
+
+    public record MilestoneRequest(
+            String title,
+            String description,
+            Integer timestampSeconds,
+            Integer sortOrder) {}
 }

@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress } from '@/types'
+import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone } from '@/types'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -81,6 +81,32 @@ export const videoApi = {
     return api.get<ApiResponse<WatchProgress[]>>('/videos/continue-watching', {
       params: { userId }
     })
+  },
+
+  getVideoMilestones(videoId: string) {
+    return api.get<ApiResponse<VideoMilestone[]>>(`/videos/${videoId}/milestones`)
+  },
+
+  createVideoMilestone(videoId: string, data: {
+    title: string
+    description?: string
+    timestampSeconds: number
+    sortOrder?: number
+  }) {
+    return api.post<ApiResponse<VideoMilestone>>(`/videos/${videoId}/milestones`, data)
+  },
+
+  updateVideoMilestone(milestoneId: string, data: {
+    title?: string
+    description?: string
+    timestampSeconds?: number
+    sortOrder?: number
+  }) {
+    return api.put<ApiResponse<VideoMilestone>>(`/videos/milestones/${milestoneId}`, data)
+  },
+
+  deleteVideoMilestone(milestoneId: string) {
+    return api.delete<ApiResponse<void>>(`/videos/milestones/${milestoneId}`)
   }
 }
 

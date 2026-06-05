@@ -6,10 +6,12 @@ import com.example.shortvideo.dto.response.VideoDTO;
 import com.example.shortvideo.dto.response.WatchProgressDTO;
 import com.example.shortvideo.entity.Tag;
 import com.example.shortvideo.entity.Video;
+import com.example.shortvideo.entity.VideoMilestone;
 import com.example.shortvideo.entity.VideoTag;
 import com.example.shortvideo.entity.WatchProgress;
 import com.example.shortvideo.repository.TagRepository;
 import com.example.shortvideo.repository.UserRepository;
+import com.example.shortvideo.repository.VideoMilestoneRepository;
 import com.example.shortvideo.repository.VideoRepository;
 import com.example.shortvideo.repository.VideoTagRepository;
 import com.example.shortvideo.repository.WatchProgressRepository;
@@ -31,6 +33,7 @@ public class VideoService {
     private final UserRepository userRepository;
     private final TagRepository tagRepository;
     private final VideoTagRepository videoTagRepository;
+    private final VideoMilestoneRepository videoMilestoneRepository;
     private final RedisService redisService;
     private final WatchProgressRepository watchProgressRepository;
     
@@ -38,12 +41,14 @@ public class VideoService {
                        UserRepository userRepository,
                        TagRepository tagRepository,
                        VideoTagRepository videoTagRepository,
+                       VideoMilestoneRepository videoMilestoneRepository,
                        RedisService redisService,
                        WatchProgressRepository watchProgressRepository) {
         this.videoRepository = videoRepository;
         this.userRepository = userRepository;
         this.tagRepository = tagRepository;
         this.videoTagRepository = videoTagRepository;
+        this.videoMilestoneRepository = videoMilestoneRepository;
         this.redisService = redisService;
         this.watchProgressRepository = watchProgressRepository;
     }
@@ -355,5 +360,61 @@ public class VideoService {
                 .filter(Objects::nonNull)
                 .limit(10)
                 .collect(Collectors.toList());
+    }
+
+    public List<VideoMilestoneDTO> getVideoMilestones(Long videoId) {
+        List<VideoMilestone> milestones = videoMilestoneRepository.findByVideoIdOrderBySortOrderAscTimestampSecondsAsc(videoId);
+        return milestones.stream()
+                .map(VideoMilestoneDTO::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    public VideoMilestoneDTO createVideoMilestone(Long videoId, String title, String description, Integer timestampSeconds, Integer sortOrder) {
+        Video video = videoRepository.findById(videoId).orElse(null);
+        if (video == null) {
+            return null;
+        }
+
+        VideoMilestone milestone = VideoMilestone.builder()
+                .videoId(videoId)
+                .title(title)
+                .description(description)
+                .timestampSeconds(timestampSeconds)
+                .sortOrder(sortOrder != null ? sortOrder : 0)
+                .build();
+
+        milestone = videoMilestoneRepository.save(milestone);
+        return VideoMilestoneDTO.fromEntity(milestone);
+    }
+
+    public VideoMilestoneDTO updateVideoMilestone(Long milestoneId, String title, String description, Integer timestampSeconds, Integer sortOrder) {
+        VideoMilestone milestone = videoMilestoneRepository.findById(milestoneId).orElse(null);
+        if (milestone == null) {
+            return null;
+        }
+
+        if (title != null) {
+            milestone.setTitle(title);
+        }
+        if (description != null) {
+            milestone.setDescription(description);
+        }
+        if (timestampSeconds != null) {
+            milestone.setTimestampSeconds(timestampSeconds);
+        }
+        if (sortOrder != null) {
+            milestone.setSortOrder(sortOrder);
+        }
+
+        milestone = videoMilestoneRepository.save(milestone);
+        return VideoMilestoneDTO.fromEntity(milestone);
+    }
+
+    public boolean deleteVideoMilestone(Long milestoneId) {
+        if (!videoMilestoneRepository.existsById(milestoneId)) {
+            return false;
+        }
+        videoMilestoneRepository.deleteById(milestoneId);
+        return true;
     }
 }

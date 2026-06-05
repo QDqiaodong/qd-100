@@ -4,7 +4,7 @@ FROM ${DOCKER_REGISTRY}/library/maven:3.9.6-eclipse-temurin-17 AS builder
 
 WORKDIR /app
 
-ARG MAVEN_MIRROR_URL=https://maven.aliyun.com/repository/public
+ARG MAVEN_MIRROR_URL=https://repo.maven.apache.org/maven2
 ARG MAVEN_REPO=/root/.m2/repository
 ARG MAVEN_ARTIFACT_THREADS=16
 

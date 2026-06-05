@@ -3,6 +3,7 @@ package com.example.shortvideo.service;
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.UserDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
+import com.example.shortvideo.dto.response.VideoMilestoneDTO;
 import com.example.shortvideo.dto.response.WatchProgressDTO;
 import com.example.shortvideo.entity.Tag;
 import com.example.shortvideo.entity.Video;

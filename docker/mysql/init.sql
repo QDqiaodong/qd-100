@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS watch_progress (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     video_id BIGINT NOT NULL,
-    current_time INT DEFAULT 0,
+    progress_seconds INT DEFAULT 0,
     is_completed BOOLEAN DEFAULT FALSE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -101,7 +101,7 @@ INSERT INTO comments (user_id, video_id, content) VALUES
 (1, 2, '好美的风景'),
 (1, 3, '加油！坚持就是胜利');
 
-INSERT INTO watch_progress (user_id, video_id, current_time, is_completed) VALUES 
+INSERT INTO watch_progress (user_id, video_id, progress_seconds, is_completed) VALUES 
 (1, 1, 45, FALSE),
 (1, 2, 5, FALSE),
 (1, 3, 30, FALSE);

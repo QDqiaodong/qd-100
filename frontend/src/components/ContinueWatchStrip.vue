@@ -2,7 +2,7 @@
 import { Play, Clock } from 'lucide-vue-next'
 import type { WatchProgress } from '@/types'
 
-const props = defineProps<{
+defineProps<{
   videos: WatchProgress[]
 }>()
 

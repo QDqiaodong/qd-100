@@ -26,7 +26,7 @@ public class WatchProgress {
     @Column(name = "video_id", nullable = false)
     private Long videoId;
     
-    @Column(name = "current_time", columnDefinition = "INT DEFAULT 0")
+    @Column(name = "progress_seconds", columnDefinition = "INT DEFAULT 0")
     private Integer currentTime;
     
     @Column(name = "is_completed", columnDefinition = "BOOLEAN DEFAULT FALSE")

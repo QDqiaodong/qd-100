@@ -1,0 +1,93 @@
+package com.example.shortvideo.controller;
+
+import com.example.shortvideo.dto.response.ApiResponse;
+import com.example.shortvideo.dto.response.VideoDTO;
+import com.example.shortvideo.entity.Video;
+import com.example.shortvideo.service.MinIOService;
+import com.example.shortvideo.service.VideoService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Arrays;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/videos")
+public class VideoController {
+    
+    private final VideoService videoService;
+    private final MinIOService minIOService;
+    
+    public VideoController(VideoService videoService, MinIOService minIOService) {
+        this.videoService = videoService;
+        this.minIOService = minIOService;
+    }
+    
+    @GetMapping
+    public ApiResponse<Page<VideoDTO>> getVideos(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String tag,
+            @RequestParam(defaultValue = "hot") String sort) {
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<VideoDTO> videos = videoService.getVideos(sort, pageable);
+        return ApiResponse.success(videos);
+    }
+    
+    @GetMapping("/{id}")
+    public ApiResponse<VideoDTO> getVideo(@PathVariable Long id) {
+        VideoDTO video = videoService.getVideoById(id);
+        if (video == null) {
+            return ApiResponse.error(404, "视频不存在");
+        }
+        return ApiResponse.success(video);
+    }
+    
+    @PostMapping
+    public ApiResponse<?> uploadVideo(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("title") String title,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "tags", required = false) String[] tags) {
+        
+        try {
+            String videoUrl = minIOService.uploadVideo(file);
+            String coverUrl = null;
+            
+            List<String> tagList = tags != null ? Arrays.asList(tags) : List.of();
+            
+            Video video = videoService.createVideo(
+                    1L, title, description, videoUrl, coverUrl, 60, tagList);
+            
+            return ApiResponse.success("上传成功", new UploadResult(video.getId(), video.getStatus()));
+        } catch (Exception e) {
+            return ApiResponse.error("上传失败: " + e.getMessage());
+        }
+    }
+    
+    @PutMapping("/{id}")
+    public ApiResponse<VideoDTO> updateVideo(
+            @PathVariable Long id,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String description) {
+        
+        Video video = videoService.updateVideo(id, title, description);
+        if (video == null) {
+            return ApiResponse.error(404, "视频不存在");
+        }
+        VideoDTO dto = VideoDTO.fromEntity(video);
+        return ApiResponse.success(dto);
+    }
+    
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deleteVideo(@PathVariable Long id) {
+        videoService.deleteVideo(id);
+        return ApiResponse.success(null);
+    }
+    
+    public record UploadResult(Long id, String status) {}
+}

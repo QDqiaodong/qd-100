@@ -37,17 +37,12 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
     
-    @Query("SELECT v FROM Video v WHERE v.userId = :userId AND v.status = 'approved' AND FUNCTION('DATE', v.createdAt) = :date ORDER BY v.createdAt DESC")
+    @Query("SELECT v FROM Video v WHERE v.userId = :userId AND v.status = 'approved' AND v.createdAt >= :startOfDay AND v.createdAt < :endOfDay ORDER BY v.createdAt DESC")
     List<Video> findByUserIdAndDate(
             @Param("userId") Long userId,
-            @Param("date") LocalDate date);
+            @Param("startOfDay") LocalDateTime startOfDay,
+            @Param("endOfDay") LocalDateTime endOfDay);
     
-    @Query("SELECT FUNCTION('DATE', v.createdAt) as date, COUNT(v) as count FROM Video v WHERE v.userId = :userId AND v.status = 'approved' AND v.createdAt >= :startDate AND v.createdAt < :endDate GROUP BY FUNCTION('DATE', v.createdAt) ORDER BY date")
-    List<Object[]> countVideosByDateAndUserId(
-            @Param("userId") Long userId,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate);
-    
-    @Query("SELECT DISTINCT FUNCTION('DATE', v.createdAt) FROM Video v WHERE v.userId = :userId AND v.status = 'approved' ORDER BY FUNCTION('DATE', v.createdAt) DESC")
-    List<LocalDate> findDistinctDatesByUserId(@Param("userId") Long userId);
+    @Query("SELECT v FROM Video v WHERE v.userId = :userId AND v.status = 'approved' ORDER BY v.createdAt DESC")
+    List<Video> findAllByUserId(@Param("userId") Long userId);
 }

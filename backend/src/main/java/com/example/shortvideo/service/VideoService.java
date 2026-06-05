@@ -143,16 +143,25 @@ public class VideoService {
         LocalDateTime startDateTime = firstDay.atStartOfDay();
         LocalDateTime endDateTime = lastDay.plusDays(1).atStartOfDay();
         
-        List<Object[]> videoCounts = videoRepository.countVideosByDateAndUserId(userId, startDateTime, endDateTime);
+        List<Video> monthVideos = videoRepository.findByUserIdAndDateRange(userId, startDateTime, endDateTime);
         
         Map<LocalDate, Integer> dateCountMap = new HashMap<>();
-        for (Object[] row : videoCounts) {
-            LocalDate date = (LocalDate) row[0];
-            Long count = (Long) row[1];
-            dateCountMap.put(date, count.intValue());
+        for (Video video : monthVideos) {
+            LocalDate date = video.getCreatedAt().toLocalDate();
+            dateCountMap.put(date, dateCountMap.getOrDefault(date, 0) + 1);
         }
         
         int maxVideoCount = dateCountMap.values().stream().max(Integer::compareTo).orElse(0);
+        
+        List<Video> allVideos = videoRepository.findAllByUserId(userId);
+        List<LocalDate> allDates = allVideos.stream()
+                .map(v -> v.getCreatedAt().toLocalDate())
+                .distinct()
+                .sorted(Collections.reverseOrder())
+                .collect(Collectors.toList());
+        
+        int currentStreak = calculateCurrentStreak(allDates);
+        int longestStreak = calculateLongestStreak(allDates);
         
         List<CheckInCalendarDTO.DayInfo> days = new ArrayList<>();
         for (int day = 1; day <= yearMonth.lengthOfMonth(); day++) {
@@ -170,11 +179,7 @@ public class VideoService {
             days.add(dayInfo);
         }
         
-        List<LocalDate> allDates = videoRepository.findDistinctDatesByUserId(userId);
-        int currentStreak = calculateCurrentStreak(allDates);
-        int longestStreak = calculateLongestStreak(allDates);
-        
-        markStreakBreaks(days, dateCountMap, yearMonth);
+        markStreakBreaks(days, dateCountMap);
         
         return CheckInCalendarDTO.builder()
                 .yearMonth(yearMonth.toString())
@@ -187,7 +192,9 @@ public class VideoService {
     }
     
     public List<VideoDTO> getUserVideosByDate(Long userId, LocalDate date) {
-        List<Video> videos = videoRepository.findByUserIdAndDate(userId, date);
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
+        List<Video> videos = videoRepository.findByUserIdAndDate(userId, startOfDay, endOfDay);
         return videos.stream().map(this::convertToDTO).collect(Collectors.toList());
     }
     
@@ -198,12 +205,26 @@ public class VideoService {
         
         int streak = 0;
         LocalDate today = LocalDate.now();
+        LocalDate checkDate = today;
         
         for (LocalDate date : dates) {
-            if (date.isEqual(today) || date.isEqual(today.minusDays(streak + 1))) {
+            if (date.isEqual(checkDate)) {
                 streak++;
-            } else if (date.isBefore(today.minusDays(streak + 1))) {
+                checkDate = checkDate.minusDays(1);
+            } else if (date.isBefore(checkDate)) {
                 break;
+            }
+        }
+        
+        if (streak == 0 && !dates.isEmpty()) {
+            checkDate = today.minusDays(1);
+            for (LocalDate date : dates) {
+                if (date.isEqual(checkDate)) {
+                    streak++;
+                    checkDate = checkDate.minusDays(1);
+                } else if (date.isBefore(checkDate)) {
+                    break;
+                }
             }
         }
         
@@ -215,16 +236,19 @@ public class VideoService {
             return 0;
         }
         
-        Collections.sort(dates);
+        List<LocalDate> sortedDates = dates.stream().sorted().collect(Collectors.toList());
         
         int longestStreak = 1;
         int currentStreak = 1;
         
-        for (int i = 1; i < dates.size(); i++) {
-            if (dates.get(i).minusDays(1).isEqual(dates.get(i - 1))) {
+        for (int i = 1; i < sortedDates.size(); i++) {
+            LocalDate prev = sortedDates.get(i - 1);
+            LocalDate curr = sortedDates.get(i);
+            
+            if (curr.minusDays(1).isEqual(prev)) {
                 currentStreak++;
                 longestStreak = Math.max(longestStreak, currentStreak);
-            } else if (!dates.get(i).isEqual(dates.get(i - 1))) {
+            } else if (!curr.isEqual(prev)) {
                 currentStreak = 1;
             }
         }
@@ -232,20 +256,18 @@ public class VideoService {
         return longestStreak;
     }
     
-    private void markStreakBreaks(List<CheckInCalendarDTO.DayInfo> days, Map<LocalDate, Integer> dateCountMap, YearMonth yearMonth) {
-        LocalDate prevDate = null;
+    private void markStreakBreaks(List<CheckInCalendarDTO.DayInfo> days, Map<LocalDate, Integer> dateCountMap) {
+        LocalDate prevVideoDate = null;
         
         for (CheckInCalendarDTO.DayInfo day : days) {
             LocalDate currentDate = LocalDate.parse(day.getDate());
             
-            if (prevDate != null && day.isHasVideo()) {
-                boolean prevHadVideo = dateCountMap.getOrDefault(prevDate, 0) > 0;
-                if (!prevHadVideo && !prevDate.plusDays(1).isEqual(currentDate)) {
+            if (day.isHasVideo()) {
+                if (prevVideoDate != null && !prevVideoDate.plusDays(1).isEqual(currentDate)) {
                     day.setStreakBroken(true);
                 }
+                prevVideoDate = currentDate;
             }
-            
-            prevDate = currentDate;
         }
     }
     

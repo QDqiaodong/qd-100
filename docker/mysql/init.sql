@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS watch_progress (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     video_id BIGINT NOT NULL,
-    progress_seconds INT DEFAULT 0,
+    current_time INT DEFAULT 0,
     is_completed BOOLEAN DEFAULT FALSE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -84,11 +84,11 @@ INSERT INTO users (username, email, password, bio, followers, following) VALUES
 ('testuser', 'test@example.com', 'password', '这是一个测试用户', 100, 50);
 
 INSERT INTO videos (user_id, title, description, cover_url, video_url, duration, status) VALUES 
-(1, '美食打卡：红烧肉制作', '今天做了一道美味的红烧肉，分享给大家！', 'http://localhost:9000/covers/2024/01/01/test1.jpg', 'http://localhost:9000/videos/2024/01/01/test1.mp4', 120, 'approved'),
-(1, '旅行日记：云南大理', '美丽的大理风光，让人沉醉', 'http://localhost:9000/covers/2024/01/02/test2.jpg', 'http://localhost:9000/videos/2024/01/02/test2.mp4', 180, 'approved'),
-(1, '健身打卡：每日一练', '坚持健身第30天，加油！', 'http://localhost:9000/covers/2024/01/03/test3.jpg', 'http://localhost:9000/videos/2024/01/03/test3.mp4', 90, 'approved'),
-(1, '学习分享：编程入门', '从零开始学编程', 'http://localhost:9000/covers/2024/01/04/test4.jpg', 'http://localhost:9000/videos/2024/01/04/test4.mp4', 240, 'approved'),
-(1, '音乐翻唱：夜曲', '翻唱周杰伦的经典歌曲', 'http://localhost:9000/covers/2024/01/05/test5.jpg', 'http://localhost:9000/videos/2024/01/05/test5.mp4', 150, 'approved');
+(1, '美食打卡：红烧肉制作', '今天做了一道美味的红烧肉，分享给大家！', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=delicious%20braised%20pork%20food%20photography&image_size=square', 'https://www.w3schools.com/html/mov_bbb.mp4', 60, 'approved'),
+(1, '旅行日记：云南大理', '美丽的大理风光，让人沉醉', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=beautiful%20dali%20yunnan%20landscape%20travel&image_size=square', 'https://www.w3schools.com/html/movie.mp4', 12, 'approved'),
+(1, '健身打卡：每日一练', '坚持健身第30天，加油！', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=fitness%20workout%20gym%20exercise&image_size=square', 'https://www.w3schools.com/html/mov_bbb.mp4', 60, 'approved'),
+(1, '学习分享：编程入门', '从零开始学编程', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=programming%20coding%20computer%20science&image_size=square', 'https://www.w3schools.com/html/movie.mp4', 12, 'approved'),
+(1, '音乐翻唱：夜曲', '翻唱周杰伦的经典歌曲', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=music%20singing%20microphone%20performance&image_size=square', 'https://www.w3schools.com/html/mov_bbb.mp4', 60, 'approved');
 
 INSERT INTO tags (name) VALUES ('美食'), ('旅行'), ('健身'), ('学习'), ('音乐');
 
@@ -100,3 +100,8 @@ INSERT INTO comments (user_id, video_id, content) VALUES
 (1, 1, '求教程！'),
 (1, 2, '好美的风景'),
 (1, 3, '加油！坚持就是胜利');
+
+INSERT INTO watch_progress (user_id, video_id, current_time, is_completed) VALUES 
+(1, 1, 45, FALSE),
+(1, 2, 5, FALSE),
+(1, 3, 30, FALSE);

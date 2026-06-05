@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { Heart, Bookmark, MessageCircle, Share2, Volume2, VolumeX, Maximize, Pause, Play } from 'lucide-vue-next'
 import type { Video, Comment } from '@/types'
 import { videoApi } from '@/api'
@@ -31,6 +31,8 @@ const commentInput = ref('')
 const controlsTimeout = ref<number | null>(null)
 const progressSaveInterval = ref<number | null>(null)
 const userId = '1'
+const videoLoading = ref(true)
+const videoError = ref(false)
 
 function togglePlay() {
   if (videoRef.value) {
@@ -72,7 +74,25 @@ function handleTimeUpdate() {
 function handleLoadedMetadata() {
   if (videoRef.value) {
     duration.value = videoRef.value.duration
+    videoLoading.value = false
+    videoError.value = false
+    
+    if (props.startTime !== undefined && props.startTime > 0 && props.startTime < duration.value) {
+      videoRef.value.currentTime = props.startTime
+      currentTime.value = props.startTime
+    }
   }
+}
+
+function handleVideoLoadStart() {
+  videoLoading.value = true
+  videoError.value = false
+}
+
+function handleVideoError() {
+  videoLoading.value = false
+  videoError.value = true
+  console.error('Video failed to load:', props.video.videoUrl)
 }
 
 function handleProgressClick(e: MouseEvent) {
@@ -155,7 +175,7 @@ watch(() => props.video, (newVideo) => {
 })
 
 watch(() => props.startTime, (newTime) => {
-  if (newTime !== undefined && newTime > 0 && videoRef.value) {
+  if (newTime !== undefined && newTime > 0 && videoRef.value && duration.value > 0 && newTime < duration.value) {
     videoRef.value.currentTime = newTime
     currentTime.value = newTime
   }
@@ -164,13 +184,6 @@ watch(() => props.startTime, (newTime) => {
 onMounted(() => {
   videoApi.getComments(props.video.id).then(res => {
     comments.value = res.data.data
-  })
-  
-  nextTick(() => {
-    if (props.startTime !== undefined && props.startTime > 0 && videoRef.value) {
-      videoRef.value.currentTime = props.startTime
-      currentTime.value = props.startTime
-    }
   })
 })
 
@@ -204,15 +217,35 @@ onUnmounted(() => {
         ref="videoRef"
         :src="video.videoUrl"
         class="w-full h-full object-contain"
+        preload="metadata"
+        @loadstart="handleVideoLoadStart"
         @timeupdate="handleTimeUpdate"
         @loadedmetadata="handleLoadedMetadata"
         @play="isPlaying = true; startProgressSaving()"
         @pause="isPlaying = false; stopProgressSaving(); saveWatchProgress()"
         @ended="emit('next'); saveWatchProgress()"
+        @error="handleVideoError"
       />
       
       <div 
-        v-if="!isPlaying" 
+        v-if="videoLoading" 
+        class="absolute inset-0 flex items-center justify-center bg-black/50"
+      >
+        <div class="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+      </div>
+      
+      <div 
+        v-if="videoError" 
+        class="absolute inset-0 flex flex-col items-center justify-center bg-black/70"
+      >
+        <svg class="w-16 h-16 text-white/50 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+        <p class="text-white/70 text-sm">视频加载失败</p>
+      </div>
+      
+      <div 
+        v-if="!isPlaying && !videoLoading && !videoError" 
         class="absolute inset-0 flex items-center justify-center"
       >
         <div class="w-20 h-20 rounded-full bg-white/90 flex items-center justify-center hover:scale-110 transition-transform">

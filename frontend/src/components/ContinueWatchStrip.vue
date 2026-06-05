@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { Play, Clock } from 'lucide-vue-next'
 import type { WatchProgress } from '@/types'
 
@@ -9,6 +10,8 @@ defineProps<{
 const emit = defineEmits<{
   play: [progress: WatchProgress]
 }>()
+
+const coverErrors = ref<Set<string>>(new Set())
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60)
@@ -23,6 +26,10 @@ function getProgressPercent(progress: WatchProgress): number {
 
 function handleClick(progress: WatchProgress) {
   emit('play', progress)
+}
+
+function handleCoverError(videoId: string) {
+  coverErrors.value.add(videoId)
 }
 </script>
 
@@ -46,10 +53,18 @@ function handleClick(progress: WatchProgress) {
         >
           <div class="relative rounded-xl overflow-hidden bg-gray-200 aspect-video mb-2">
             <img
+              v-if="!coverErrors.has(progress.video.id)"
               :src="progress.video.coverUrl || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=video%20thumbnail%20abstract&image_size=square'"
               :alt="progress.video.title"
               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              @error="handleCoverError(progress.video.id)"
             />
+            <div 
+              v-else
+              class="w-full h-full bg-gradient-to-br from-primary/20 to-orange-500/20 flex items-center justify-center"
+            >
+              <Play class="w-12 h-12 text-primary/60" />
+            </div>
             
             <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <div class="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">

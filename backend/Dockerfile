@@ -5,13 +5,19 @@ FROM ${DOCKER_REGISTRY}/library/maven:3.9.6-eclipse-temurin-17 AS builder
 WORKDIR /app
 
 ARG MAVEN_MIRROR_URL=https://maven.aliyun.com/repository/public
+ARG MAVEN_REPO=/root/.m2/repository
+ARG MAVEN_ARTIFACT_THREADS=16
 
 COPY .mvn/ .mvn/
 COPY pom.xml .
-RUN mvn -Drepo.public.url=${MAVEN_MIRROR_URL} dependency:go-offline -q
-
 COPY src ./src
-RUN mvn -Drepo.public.url=${MAVEN_MIRROR_URL} package -DskipTests -q
+RUN --mount=type=cache,target=${MAVEN_REPO},sharing=locked \
+    mvn -B -ntp \
+      -Drepo.public.url=${MAVEN_MIRROR_URL} \
+      -Dmaven.artifact.threads=${MAVEN_ARTIFACT_THREADS} \
+      -Dmaven.repo.local=${MAVEN_REPO} \
+      -DskipTests \
+      package
 
 FROM ${DOCKER_REGISTRY}/library/eclipse-temurin:17-jre
 

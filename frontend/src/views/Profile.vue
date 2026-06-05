@@ -2,13 +2,14 @@
 import { ref, onMounted } from 'vue'
 import { User, Camera, Edit3, Trash2, Heart } from 'lucide-vue-next'
 import Navbar from '@/components/Navbar.vue'
+import CalendarWall from '@/components/CalendarWall.vue'
 import { userApi, videoApi } from '@/api'
 import type { User as UserType, Video } from '@/types'
 
 const user = ref<UserType | null>(null)
 const videos = ref<Video[]>([])
 const favorites = ref<Video[]>([])
-const activeTab = ref<'videos' | 'favorites'>('videos')
+const activeTab = ref<'videos' | 'favorites' | 'calendar'>('videos')
 const editingVideo = ref<Video | null>(null)
 const editTitle = ref('')
 const editDescription = ref('')
@@ -139,6 +140,10 @@ onMounted(() => {
           </div>
         </div>
         
+        <div class="mb-6">
+          <CalendarWall :userId="user.id" />
+        </div>
+        
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
           <div class="flex border-b border-gray-100">
             <button
@@ -210,7 +215,7 @@ onMounted(() => {
             </div>
           </div>
           
-          <div v-else class="p-4">
+          <div v-else-if="activeTab === 'favorites'" class="p-4">
             <div v-if="favorites.length === 0" class="text-center py-16">
               <div class="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
                 <Heart class="w-8 h-8 text-gray-400" />

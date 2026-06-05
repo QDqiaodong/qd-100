@@ -32,13 +32,13 @@ frontend/.env.local
 frontend/.env.*.local
 
 # Frontend dependencies and build output
-frontend/node_modules/
-frontend/dist/
-frontend/coverage/
-frontend/.vite/
-frontend/.turbo/
-frontend/.eslintcache
-frontend/*.tsbuildinfo
+node_modules/
+dist/
+coverage/
+.vite/
+.turbo/
+.eslintcache
+*.tsbuildinfo
 
 # Backend build output
 backend/target/

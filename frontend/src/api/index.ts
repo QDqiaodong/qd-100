@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import type { Video, User, PageResponse, ApiResponse, Comment } from '@/types'
+import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar } from '@/types'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -54,6 +54,14 @@ export const videoApi = {
 
   addComment(videoId: string, content: string) {
     return api.post<ApiResponse<Comment>>(`/videos/${videoId}/comments`, { content })
+  },
+
+  getCheckInCalendar(userId: string, params?: { year?: number; month?: number }) {
+    return api.get<ApiResponse<CheckInCalendar>>(`/videos/calendar/${userId}`, { params })
+  },
+
+  getUserVideosByDate(userId: string, date: string) {
+    return api.get<ApiResponse<Video[]>>(`/videos/user/${userId}/date/${date}`)
   }
 }
 

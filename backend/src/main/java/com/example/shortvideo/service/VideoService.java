@@ -1,5 +1,6 @@
 package com.example.shortvideo.service;
 
+import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.UserDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
 import com.example.shortvideo.entity.Tag;
@@ -13,8 +14,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -63,7 +67,6 @@ public class VideoService {
         if (viewCount != null) {
             video.setViewCount(viewCount.intValue());
         } else {
-            // Redis不可用时，使用数据库中的数据并自增
             video.setViewCount(video.getViewCount() + 1);
         }
         videoRepository.save(video);
@@ -130,6 +133,120 @@ public class VideoService {
     public List<VideoDTO> getUserFavoriteVideos(Long userId) {
         List<Video> videos = videoRepository.findFavoriteVideosByUserId(userId);
         return videos.stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+    
+    public CheckInCalendarDTO getUserCheckInCalendar(Long userId, int year, int month) {
+        YearMonth yearMonth = YearMonth.of(year, month);
+        LocalDate firstDay = yearMonth.atDay(1);
+        LocalDate lastDay = yearMonth.atEndOfMonth();
+        
+        LocalDateTime startDateTime = firstDay.atStartOfDay();
+        LocalDateTime endDateTime = lastDay.plusDays(1).atStartOfDay();
+        
+        List<Object[]> videoCounts = videoRepository.countVideosByDateAndUserId(userId, startDateTime, endDateTime);
+        
+        Map<LocalDate, Integer> dateCountMap = new HashMap<>();
+        for (Object[] row : videoCounts) {
+            LocalDate date = (LocalDate) row[0];
+            Long count = (Long) row[1];
+            dateCountMap.put(date, count.intValue());
+        }
+        
+        int maxVideoCount = dateCountMap.values().stream().max(Integer::compareTo).orElse(0);
+        
+        List<CheckInCalendarDTO.DayInfo> days = new ArrayList<>();
+        for (int day = 1; day <= yearMonth.lengthOfMonth(); day++) {
+            LocalDate date = yearMonth.atDay(day);
+            int count = dateCountMap.getOrDefault(date, 0);
+            
+            CheckInCalendarDTO.DayInfo dayInfo = CheckInCalendarDTO.DayInfo.builder()
+                    .date(date.toString())
+                    .dayOfMonth(day)
+                    .hasVideo(count > 0)
+                    .videoCount(count)
+                    .isStreakBroken(false)
+                    .isMostActive(count > 0 && count == maxVideoCount)
+                    .build();
+            days.add(dayInfo);
+        }
+        
+        List<LocalDate> allDates = videoRepository.findDistinctDatesByUserId(userId);
+        int currentStreak = calculateCurrentStreak(allDates);
+        int longestStreak = calculateLongestStreak(allDates);
+        
+        markStreakBreaks(days, dateCountMap, yearMonth);
+        
+        return CheckInCalendarDTO.builder()
+                .yearMonth(yearMonth.toString())
+                .totalDays(yearMonth.lengthOfMonth())
+                .checkInDays((int) days.stream().filter(CheckInCalendarDTO.DayInfo::isHasVideo).count())
+                .currentStreak(currentStreak)
+                .longestStreak(longestStreak)
+                .days(days)
+                .build();
+    }
+    
+    public List<VideoDTO> getUserVideosByDate(Long userId, LocalDate date) {
+        List<Video> videos = videoRepository.findByUserIdAndDate(userId, date);
+        return videos.stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+    
+    private int calculateCurrentStreak(List<LocalDate> dates) {
+        if (dates.isEmpty()) {
+            return 0;
+        }
+        
+        int streak = 0;
+        LocalDate today = LocalDate.now();
+        
+        for (LocalDate date : dates) {
+            if (date.isEqual(today) || date.isEqual(today.minusDays(streak + 1))) {
+                streak++;
+            } else if (date.isBefore(today.minusDays(streak + 1))) {
+                break;
+            }
+        }
+        
+        return streak;
+    }
+    
+    private int calculateLongestStreak(List<LocalDate> dates) {
+        if (dates.isEmpty()) {
+            return 0;
+        }
+        
+        Collections.sort(dates);
+        
+        int longestStreak = 1;
+        int currentStreak = 1;
+        
+        for (int i = 1; i < dates.size(); i++) {
+            if (dates.get(i).minusDays(1).isEqual(dates.get(i - 1))) {
+                currentStreak++;
+                longestStreak = Math.max(longestStreak, currentStreak);
+            } else if (!dates.get(i).isEqual(dates.get(i - 1))) {
+                currentStreak = 1;
+            }
+        }
+        
+        return longestStreak;
+    }
+    
+    private void markStreakBreaks(List<CheckInCalendarDTO.DayInfo> days, Map<LocalDate, Integer> dateCountMap, YearMonth yearMonth) {
+        LocalDate prevDate = null;
+        
+        for (CheckInCalendarDTO.DayInfo day : days) {
+            LocalDate currentDate = LocalDate.parse(day.getDate());
+            
+            if (prevDate != null && day.isHasVideo()) {
+                boolean prevHadVideo = dateCountMap.getOrDefault(prevDate, 0) > 0;
+                if (!prevHadVideo && !prevDate.plusDays(1).isEqual(currentDate)) {
+                    day.setStreakBroken(true);
+                }
+            }
+            
+            prevDate = currentDate;
+        }
     }
     
     private VideoDTO convertToDTO(Video video) {

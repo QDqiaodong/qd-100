@@ -1,6 +1,7 @@
 package com.example.shortvideo.controller;
 
 import com.example.shortvideo.dto.response.ApiResponse;
+import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
 import com.example.shortvideo.entity.Video;
 import com.example.shortvideo.service.MinIOService;
@@ -11,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.Arrays;
 import java.util.List;
 
@@ -87,6 +90,34 @@ public class VideoController {
     public ApiResponse<Void> deleteVideo(@PathVariable Long id) {
         videoService.deleteVideo(id);
         return ApiResponse.success(null);
+    }
+    
+    @GetMapping("/calendar/{userId}")
+    public ApiResponse<CheckInCalendarDTO> getCheckInCalendar(
+            @PathVariable Long userId,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month) {
+        
+        YearMonth yearMonth;
+        if (year != null && month != null) {
+            yearMonth = YearMonth.of(year, month);
+        } else {
+            yearMonth = YearMonth.now();
+        }
+        
+        CheckInCalendarDTO calendar = videoService.getUserCheckInCalendar(
+                userId, yearMonth.getYear(), yearMonth.getMonthValue());
+        return ApiResponse.success(calendar);
+    }
+    
+    @GetMapping("/user/{userId}/date/{date}")
+    public ApiResponse<List<VideoDTO>> getUserVideosByDate(
+            @PathVariable Long userId,
+            @PathVariable String date) {
+        
+        LocalDate localDate = LocalDate.parse(date);
+        List<VideoDTO> videos = videoService.getUserVideosByDate(userId, localDate);
+        return ApiResponse.success(videos);
     }
     
     public record UploadResult(Long id, String status) {}

@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -28,4 +30,24 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     
     @Query("SELECT v FROM Video v WHERE v.status = :status")
     Page<Video> findByStatusWithPagination(@Param("status") String status, Pageable pageable);
+    
+    @Query("SELECT v FROM Video v WHERE v.userId = :userId AND v.status = 'approved' AND v.createdAt >= :startDate AND v.createdAt < :endDate ORDER BY v.createdAt DESC")
+    List<Video> findByUserIdAndDateRange(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+    
+    @Query("SELECT v FROM Video v WHERE v.userId = :userId AND v.status = 'approved' AND FUNCTION('DATE', v.createdAt) = :date ORDER BY v.createdAt DESC")
+    List<Video> findByUserIdAndDate(
+            @Param("userId") Long userId,
+            @Param("date") LocalDate date);
+    
+    @Query("SELECT FUNCTION('DATE', v.createdAt) as date, COUNT(v) as count FROM Video v WHERE v.userId = :userId AND v.status = 'approved' AND v.createdAt >= :startDate AND v.createdAt < :endDate GROUP BY FUNCTION('DATE', v.createdAt) ORDER BY date")
+    List<Object[]> countVideosByDateAndUserId(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+    
+    @Query("SELECT DISTINCT FUNCTION('DATE', v.createdAt) FROM Video v WHERE v.userId = :userId AND v.status = 'approved' ORDER BY FUNCTION('DATE', v.createdAt) DESC")
+    List<LocalDate> findDistinctDatesByUserId(@Param("userId") Long userId);
 }

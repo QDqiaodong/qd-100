@@ -61,3 +61,21 @@ export interface VideoUploadRequest {
   description: string
   tags: string[]
 }
+
+export interface DayInfo {
+  date: string
+  dayOfMonth: number
+  hasVideo: boolean
+  videoCount: number
+  isStreakBroken: boolean
+  isMostActive: boolean
+}
+
+export interface CheckInCalendar {
+  yearMonth: string
+  totalDays: number
+  checkInDays: number
+  currentStreak: number
+  longestStreak: number
+  days: DayInfo[]
+}

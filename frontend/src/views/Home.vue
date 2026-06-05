@@ -3,14 +3,17 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import Navbar from '@/components/Navbar.vue'
 import VideoCard from '@/components/VideoCard.vue'
 import VideoPlayerModal from '@/components/VideoPlayer.vue'
+import ContinueWatchStrip from '@/components/ContinueWatchStrip.vue'
 import { videoApi } from '@/api'
-import type { Video } from '@/types'
+import type { Video, WatchProgress } from '@/types'
 
 const videos = ref<Video[]>([])
+const continueWatchingVideos = ref<WatchProgress[]>([])
 const loading = ref(false)
 const page = ref(0)
 const hasMore = ref(true)
 const selectedVideo = ref<Video | null>(null)
+const selectedStartTime = ref<number | undefined>(undefined)
 const tags = ref(['全部', '美食', '旅行', '健身', '学习', '音乐', '游戏', '宠物'])
 const activeTag = ref('全部')
 const sortOptions = ref([
@@ -19,9 +22,23 @@ const sortOptions = ref([
   { value: 'follow', label: '关注' }
 ])
 const activeSort = ref('hot')
+const userId = '1'
 
 const observer = ref<IntersectionObserver | null>(null)
 const lastVideoRef = ref<HTMLElement | null>(null)
+
+function fetchContinueWatching() {
+  videoApi.getContinueWatchingVideos(userId).then(res => {
+    continueWatchingVideos.value = res.data.data || []
+  }).catch(err => {
+    console.error('Failed to fetch continue watching videos:', err)
+  })
+}
+
+function handleContinueWatch(progress: WatchProgress) {
+  selectedVideo.value = progress.video
+  selectedStartTime.value = progress.currentTime
+}
 
 function fetchVideos() {
   if (loading.value || !hasMore.value) return
@@ -50,10 +67,13 @@ function fetchVideos() {
 
 function handleVideoClick(video: Video) {
   selectedVideo.value = video
+  selectedStartTime.value = undefined
 }
 
 function closePlayer() {
   selectedVideo.value = null
+  selectedStartTime.value = undefined
+  fetchContinueWatching()
 }
 
 function initObserver() {
@@ -68,6 +88,7 @@ function initObserver() {
 }
 
 onMounted(() => {
+  fetchContinueWatching()
   fetchVideos()
   initObserver()
 })
@@ -85,6 +106,11 @@ onUnmounted(() => {
     
     <div class="pt-20 pb-10">
       <div class="max-w-7xl mx-auto px-4">
+        <ContinueWatchStrip 
+          :videos="continueWatchingVideos"
+          @play="handleContinueWatch"
+        />
+        
         <div class="sticky top-16 bg-gray-100/95 backdrop-blur-sm py-4 z-40">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
@@ -149,6 +175,7 @@ onUnmounted(() => {
     <VideoPlayerModal 
       v-if="selectedVideo"
       :video="selectedVideo"
+      :start-time="selectedStartTime"
       @close="closePlayer"
     />
   </div>

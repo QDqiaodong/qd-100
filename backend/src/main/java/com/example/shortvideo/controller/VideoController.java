@@ -3,6 +3,7 @@ package com.example.shortvideo.controller;
 import com.example.shortvideo.dto.response.ApiResponse;
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
+import com.example.shortvideo.dto.response.WatchProgressDTO;
 import com.example.shortvideo.entity.Video;
 import com.example.shortvideo.service.MinIOService;
 import com.example.shortvideo.service.VideoService;
@@ -120,5 +121,37 @@ public class VideoController {
         return ApiResponse.success(videos);
     }
     
+    @PostMapping("/{id}/watch-progress")
+    public ApiResponse<WatchProgressDTO> updateWatchProgress(
+            @PathVariable Long id,
+            @RequestBody WatchProgressRequest request) {
+        
+        WatchProgressDTO progress = videoService.updateWatchProgress(
+                request.userId(), id, request.currentTime());
+        if (progress == null) {
+            return ApiResponse.error(404, "视频不存在");
+        }
+        return ApiResponse.success(progress);
+    }
+    
+    @GetMapping("/{id}/watch-progress")
+    public ApiResponse<WatchProgressDTO> getWatchProgress(
+            @PathVariable Long id,
+            @RequestParam Long userId) {
+        
+        WatchProgressDTO progress = videoService.getWatchProgress(userId, id);
+        return ApiResponse.success(progress);
+    }
+    
+    @GetMapping("/continue-watching")
+    public ApiResponse<List<WatchProgressDTO>> getContinueWatchingVideos(
+            @RequestParam Long userId) {
+        
+        List<WatchProgressDTO> videos = videoService.getContinueWatchingVideos(userId);
+        return ApiResponse.success(videos);
+    }
+    
     public record UploadResult(Long id, String status) {}
+    
+    public record WatchProgressRequest(Long userId, Integer currentTime) {}
 }

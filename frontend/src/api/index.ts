@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar } from '@/types'
+import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress } from '@/types'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -62,6 +62,25 @@ export const videoApi = {
 
   getUserVideosByDate(userId: string, date: string) {
     return api.get<ApiResponse<Video[]>>(`/videos/user/${userId}/date/${date}`)
+  },
+
+  updateWatchProgress(videoId: string, userId: string, currentTime: number) {
+    return api.post<ApiResponse<WatchProgress>>(`/videos/${videoId}/watch-progress`, {
+      userId,
+      currentTime
+    })
+  },
+
+  getWatchProgress(videoId: string, userId: string) {
+    return api.get<ApiResponse<WatchProgress>>(`/videos/${videoId}/watch-progress`, {
+      params: { userId }
+    })
+  },
+
+  getContinueWatchingVideos(userId: string) {
+    return api.get<ApiResponse<WatchProgress[]>>('/videos/continue-watching', {
+      params: { userId }
+    })
   }
 }
 

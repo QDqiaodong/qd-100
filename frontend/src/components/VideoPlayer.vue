@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Heart, Bookmark, MessageCircle, Share2, Volume2, VolumeX, Maximize, Pause, Play } from 'lucide-vue-next'
 import type { Video, Comment } from '@/types'
 import { videoApi } from '@/api'
 
 const props = defineProps<{
   video: Video
+  startTime?: number
 }>()
 
 const emit = defineEmits<{
@@ -28,6 +29,8 @@ const favoriteCount = ref(props.video.favoriteCount)
 const comments = ref<Comment[]>([])
 const commentInput = ref('')
 const controlsTimeout = ref<number | null>(null)
+const progressSaveInterval = ref<number | null>(null)
+const userId = '1'
 
 function togglePlay() {
   if (videoRef.value) {
@@ -110,6 +113,30 @@ function addComment() {
   }
 }
 
+function saveWatchProgress() {
+  if (videoRef.value && currentTime.value > 0) {
+    videoApi.updateWatchProgress(props.video.id, userId, Math.floor(currentTime.value)).catch(err => {
+      console.error('Failed to save watch progress:', err)
+    })
+  }
+}
+
+function startProgressSaving() {
+  if (progressSaveInterval.value) {
+    clearInterval(progressSaveInterval.value)
+  }
+  progressSaveInterval.value = window.setInterval(() => {
+    saveWatchProgress()
+  }, 5000)
+}
+
+function stopProgressSaving() {
+  if (progressSaveInterval.value) {
+    clearInterval(progressSaveInterval.value)
+    progressSaveInterval.value = null
+  }
+}
+
 function resetControlsTimeout() {
   showControls.value = true
   if (controlsTimeout.value) {
@@ -127,9 +154,23 @@ watch(() => props.video, (newVideo) => {
   favoriteCount.value = newVideo.favoriteCount
 })
 
+watch(() => props.startTime, (newTime) => {
+  if (newTime !== undefined && newTime > 0 && videoRef.value) {
+    videoRef.value.currentTime = newTime
+    currentTime.value = newTime
+  }
+})
+
 onMounted(() => {
   videoApi.getComments(props.video.id).then(res => {
     comments.value = res.data.data
+  })
+  
+  nextTick(() => {
+    if (props.startTime !== undefined && props.startTime > 0 && videoRef.value) {
+      videoRef.value.currentTime = props.startTime
+      currentTime.value = props.startTime
+    }
   })
 })
 
@@ -137,6 +178,8 @@ onUnmounted(() => {
   if (controlsTimeout.value) {
     clearTimeout(controlsTimeout.value)
   }
+  stopProgressSaving()
+  saveWatchProgress()
 })
 </script>
 
@@ -163,13 +206,13 @@ onUnmounted(() => {
         class="w-full h-full object-contain"
         @timeupdate="handleTimeUpdate"
         @loadedmetadata="handleLoadedMetadata"
-        @play="isPlaying = true"
-        @pause="isPlaying = false"
-        @ended="emit('next')"
+        @play="isPlaying = true; startProgressSaving()"
+        @pause="isPlaying = false; stopProgressSaving(); saveWatchProgress()"
+        @ended="emit('next'); saveWatchProgress()"
       />
       
       <div 
-        v-if="!isPlaying && currentTime === 0" 
+        v-if="!isPlaying" 
         class="absolute inset-0 flex items-center justify-center"
       >
         <div class="w-20 h-20 rounded-full bg-white/90 flex items-center justify-center hover:scale-110 transition-transform">

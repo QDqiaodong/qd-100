@@ -67,6 +67,19 @@ CREATE TABLE IF NOT EXISTS comments (
     FOREIGN KEY (video_id) REFERENCES videos(id)
 );
 
+CREATE TABLE IF NOT EXISTS watch_progress (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    video_id BIGINT NOT NULL,
+    current_time INT DEFAULT 0,
+    is_completed BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_video (user_id, video_id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (video_id) REFERENCES videos(id)
+);
+
 INSERT INTO users (username, email, password, bio, followers, following) VALUES 
 ('testuser', 'test@example.com', 'password', '这是一个测试用户', 100, 50);
 

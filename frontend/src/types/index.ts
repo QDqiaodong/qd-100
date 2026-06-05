@@ -79,3 +79,12 @@ export interface CheckInCalendar {
   longestStreak: number
   days: DayInfo[]
 }
+
+export interface WatchProgress {
+  id: string
+  userId: string
+  video: Video
+  currentTime: number
+  isCompleted: boolean
+  updatedAt: string
+}

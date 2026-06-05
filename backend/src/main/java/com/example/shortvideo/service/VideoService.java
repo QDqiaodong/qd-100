@@ -3,13 +3,16 @@ package com.example.shortvideo.service;
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.UserDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
+import com.example.shortvideo.dto.response.WatchProgressDTO;
 import com.example.shortvideo.entity.Tag;
 import com.example.shortvideo.entity.Video;
 import com.example.shortvideo.entity.VideoTag;
+import com.example.shortvideo.entity.WatchProgress;
 import com.example.shortvideo.repository.TagRepository;
 import com.example.shortvideo.repository.UserRepository;
 import com.example.shortvideo.repository.VideoRepository;
 import com.example.shortvideo.repository.VideoTagRepository;
+import com.example.shortvideo.repository.WatchProgressRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,17 +32,20 @@ public class VideoService {
     private final TagRepository tagRepository;
     private final VideoTagRepository videoTagRepository;
     private final RedisService redisService;
+    private final WatchProgressRepository watchProgressRepository;
     
     public VideoService(VideoRepository videoRepository, 
                        UserRepository userRepository,
                        TagRepository tagRepository,
                        VideoTagRepository videoTagRepository,
-                       RedisService redisService) {
+                       RedisService redisService,
+                       WatchProgressRepository watchProgressRepository) {
         this.videoRepository = videoRepository;
         this.userRepository = userRepository;
         this.tagRepository = tagRepository;
         this.videoTagRepository = videoTagRepository;
         this.redisService = redisService;
+        this.watchProgressRepository = watchProgressRepository;
     }
     
     public Page<VideoDTO> getVideos(String sort, Pageable pageable) {
@@ -288,5 +294,66 @@ public class VideoService {
         dto.setTags(tagNames);
         
         return dto;
+    }
+    
+    public WatchProgressDTO updateWatchProgress(Long userId, Long videoId, Integer currentTime) {
+        Video video = videoRepository.findById(videoId).orElse(null);
+        if (video == null) {
+            return null;
+        }
+        
+        WatchProgress progress = watchProgressRepository.findByUserIdAndVideoId(userId, videoId).orElse(null);
+        
+        boolean isCompleted = false;
+        if (video.getDuration() != null && video.getDuration() > 0) {
+            double progressPercent = (double) currentTime / video.getDuration();
+            isCompleted = progressPercent >= 0.95;
+        }
+        
+        if (progress == null) {
+            progress = WatchProgress.builder()
+                    .userId(userId)
+                    .videoId(videoId)
+                    .currentTime(currentTime)
+                    .isCompleted(isCompleted)
+                    .build();
+        } else {
+            progress.setCurrentTime(currentTime);
+            progress.setIsCompleted(isCompleted);
+        }
+        
+        progress = watchProgressRepository.save(progress);
+        
+        return WatchProgressDTO.fromEntity(progress, convertToDTO(video));
+    }
+    
+    public WatchProgressDTO getWatchProgress(Long userId, Long videoId) {
+        WatchProgress progress = watchProgressRepository.findByUserIdAndVideoId(userId, videoId).orElse(null);
+        if (progress == null) {
+            return null;
+        }
+        
+        Video video = videoRepository.findById(videoId).orElse(null);
+        if (video == null) {
+            return null;
+        }
+        
+        return WatchProgressDTO.fromEntity(progress, convertToDTO(video));
+    }
+    
+    public List<WatchProgressDTO> getContinueWatchingVideos(Long userId) {
+        List<WatchProgress> progressList = watchProgressRepository.findContinueWatchingVideos(userId);
+        
+        return progressList.stream()
+                .map(progress -> {
+                    Video video = videoRepository.findById(progress.getVideoId()).orElse(null);
+                    if (video == null) {
+                        return null;
+                    }
+                    return WatchProgressDTO.fromEntity(progress, convertToDTO(video));
+                })
+                .filter(Objects::nonNull)
+                .limit(10)
+                .collect(Collectors.toList());
     }
 }

@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone } from '@/types'
+import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone, MorningReport } from '@/types'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -20,6 +20,10 @@ api.interceptors.response.use(
 export const videoApi = {
   getVideos(params: { page?: number; size?: number; tag?: string; sort?: string }) {
     return api.get<ApiResponse<PageResponse<Video>>>('/videos', { params })
+  },
+
+  getMorningReport() {
+    return api.get<ApiResponse<MorningReport>>('/videos/morning-report')
   },
 
   getVideo(id: string) {

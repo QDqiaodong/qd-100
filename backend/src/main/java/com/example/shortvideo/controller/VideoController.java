@@ -2,6 +2,7 @@ package com.example.shortvideo.controller;
 
 import com.example.shortvideo.dto.response.ApiResponse;
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
+import com.example.shortvideo.dto.response.MorningReportDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
 import com.example.shortvideo.dto.response.VideoMilestoneDTO;
 import com.example.shortvideo.dto.response.WatchProgressDTO;
@@ -41,6 +42,12 @@ public class VideoController {
         Pageable pageable = PageRequest.of(page, size);
         Page<VideoDTO> videos = videoService.getVideos(sort, pageable);
         return ApiResponse.success(videos);
+    }
+
+    @GetMapping("/morning-report")
+    public ApiResponse<MorningReportDTO> getMorningReport() {
+        MorningReportDTO report = videoService.getMorningReport();
+        return ApiResponse.success(report);
     }
     
     @GetMapping("/{id}")

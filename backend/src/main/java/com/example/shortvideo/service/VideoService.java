@@ -1,11 +1,13 @@
 package com.example.shortvideo.service;
 
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
+import com.example.shortvideo.dto.response.MorningReportDTO;
 import com.example.shortvideo.dto.response.UserDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
 import com.example.shortvideo.dto.response.VideoMilestoneDTO;
 import com.example.shortvideo.dto.response.WatchProgressDTO;
 import com.example.shortvideo.entity.Tag;
+import com.example.shortvideo.entity.User;
 import com.example.shortvideo.entity.Video;
 import com.example.shortvideo.entity.VideoMilestone;
 import com.example.shortvideo.entity.VideoTag;
@@ -17,6 +19,7 @@ import com.example.shortvideo.repository.VideoRepository;
 import com.example.shortvideo.repository.VideoTagRepository;
 import com.example.shortvideo.repository.WatchProgressRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
@@ -417,5 +420,98 @@ public class VideoService {
         }
         videoMilestoneRepository.deleteById(milestoneId);
         return true;
+    }
+
+    public MorningReportDTO getMorningReport() {
+        LocalDate today = LocalDate.now();
+        LocalDateTime todayStart = today.atStartOfDay();
+        LocalDateTime yesterdayStart = today.minusDays(1).atStartOfDay();
+        LocalDateTime weekAgo = today.minusDays(7).atStartOfDay();
+
+        List<MorningReportDTO.HotTagDTO> hotTags = getHotTags(todayStart);
+        List<MorningReportDTO.NewAuthorDTO> newAuthors = getNewAuthors(weekAgo);
+        List<MorningReportDTO.TrendingVideoDTO> trendingVideos = getTrendingVideos(yesterdayStart);
+
+        return MorningReportDTO.builder()
+                .hotTags(hotTags)
+                .newAuthors(newAuthors)
+                .trendingVideos(trendingVideos)
+                .reportDate(today.toString())
+                .build();
+    }
+
+    private List<MorningReportDTO.HotTagDTO> getHotTags(LocalDateTime startTime) {
+        List<Object[]> results = tagRepository.findHotTagsWithStats(startTime);
+        List<MorningReportDTO.HotTagDTO> hotTags = new ArrayList<>();
+
+        int rank = 0;
+        for (Object[] result : results) {
+            if (rank >= 8) break;
+            Long id = ((Number) result[0]).longValue();
+            String name = (String) result[1];
+            Integer videoCount = ((Number) result[2]).intValue();
+            Integer viewCount = result[3] != null ? ((Number) result[3]).intValue() : 0;
+
+            String trend = rank < 3 ? "up" : "stable";
+
+            hotTags.add(MorningReportDTO.HotTagDTO.builder()
+                    .id(id)
+                    .name(name)
+                    .videoCount(videoCount)
+                    .viewCount(viewCount)
+                    .trend(trend)
+                    .build());
+            rank++;
+        }
+
+        return hotTags;
+    }
+
+    private List<MorningReportDTO.NewAuthorDTO> getNewAuthors(LocalDateTime startTime) {
+        Pageable pageable = PageRequest.of(0, 6);
+        List<User> users = userRepository.findNewAuthors(startTime, pageable);
+        List<MorningReportDTO.NewAuthorDTO> newAuthors = new ArrayList<>();
+
+        for (User user : users) {
+            Integer videoCount = userRepository.countVideosByUserId(user.getId());
+            newAuthors.add(MorningReportDTO.NewAuthorDTO.builder()
+                    .id(user.getId())
+                    .username(user.getUsername())
+                    .avatar(user.getAvatar())
+                    .bio(user.getBio())
+                    .videoCount(videoCount != null ? videoCount : 0)
+                    .followers(user.getFollowers())
+                    .createdAt(user.getCreatedAt().toString())
+                    .build());
+        }
+
+        return newAuthors;
+    }
+
+    private List<MorningReportDTO.TrendingVideoDTO> getTrendingVideos(LocalDateTime startTime) {
+        Pageable pageable = PageRequest.of(0, 6);
+        List<Video> videos = videoRepository.findTrendingVideos(startTime, pageable);
+        List<MorningReportDTO.TrendingVideoDTO> trendingVideos = new ArrayList<>();
+
+        for (int i = 0; i < videos.size(); i++) {
+            Video video = videos.get(i);
+            VideoDTO videoDTO = convertToDTO(video);
+
+            int baseGrowth = video.getViewCount() + video.getLikeCount() * 3;
+            int growthRate = Math.max(10, baseGrowth / (i + 1));
+
+            trendingVideos.add(MorningReportDTO.TrendingVideoDTO.builder()
+                    .id(video.getId())
+                    .title(video.getTitle())
+                    .coverUrl(video.getCoverUrl())
+                    .viewCount(video.getViewCount())
+                    .likeCount(video.getLikeCount())
+                    .growthRate(growthRate)
+                    .author(videoDTO.getAuthor())
+                    .tags(videoDTO.getTags())
+                    .build());
+        }
+
+        return trendingVideos;
     }
 }

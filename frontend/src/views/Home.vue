@@ -4,11 +4,14 @@ import Navbar from '@/components/Navbar.vue'
 import VideoCard from '@/components/VideoCard.vue'
 import VideoPlayerModal from '@/components/VideoPlayer.vue'
 import ContinueWatchStrip from '@/components/ContinueWatchStrip.vue'
+import MorningReport from '@/components/MorningReport.vue'
 import { videoApi } from '@/api'
-import type { Video, WatchProgress } from '@/types'
+import type { Video, WatchProgress, MorningReport as MorningReportType, HotTag, NewAuthor, TrendingVideo } from '@/types'
 
 const videos = ref<Video[]>([])
 const continueWatchingVideos = ref<WatchProgress[]>([])
+const morningReport = ref<MorningReportType | null>(null)
+const morningReportLoading = ref(false)
 const loading = ref(false)
 const page = ref(0)
 const hasMore = ref(true)
@@ -32,6 +35,38 @@ function fetchContinueWatching() {
     continueWatchingVideos.value = res.data.data || []
   }).catch(err => {
     console.error('Failed to fetch continue watching videos:', err)
+  })
+}
+
+function fetchMorningReport() {
+  morningReportLoading.value = true
+  videoApi.getMorningReport().then(res => {
+    morningReport.value = res.data.data
+  }).catch(err => {
+    console.error('Failed to fetch morning report:', err)
+  }).finally(() => {
+    morningReportLoading.value = false
+  })
+}
+
+function handleTagClick(tag: HotTag) {
+  activeTag.value = tag.name
+  videos.value = []
+  page.value = 0
+  hasMore.value = true
+  fetchVideos()
+}
+
+function handleAuthorClick(author: NewAuthor) {
+  console.log('Author clicked:', author.username)
+}
+
+function handleTrendingVideoClick(video: TrendingVideo) {
+  videoApi.getVideo(video.id).then(res => {
+    selectedVideo.value = res.data.data
+    selectedStartTime.value = undefined
+  }).catch(() => {
+    console.error('Failed to fetch video details')
   })
 }
 
@@ -88,6 +123,7 @@ function initObserver() {
 }
 
 onMounted(() => {
+  fetchMorningReport()
   fetchContinueWatching()
   fetchVideos()
   initObserver()
@@ -106,6 +142,14 @@ onUnmounted(() => {
     
     <div class="pt-20 pb-10">
       <div class="max-w-7xl mx-auto px-4">
+        <MorningReport 
+          :report="morningReport"
+          :loading="morningReportLoading"
+          @tag-click="handleTagClick"
+          @author-click="handleAuthorClick"
+          @video-click="handleTrendingVideoClick"
+        />
+
         <ContinueWatchStrip 
           :videos="continueWatchingVideos"
           @play="handleContinueWatch"

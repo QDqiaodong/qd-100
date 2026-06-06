@@ -98,3 +98,39 @@ export interface VideoMilestone {
   sortOrder: number
   createdAt: string
 }
+
+export interface HotTag {
+  id: string
+  name: string
+  videoCount: number
+  viewCount: number
+  trend: string
+}
+
+export interface NewAuthor {
+  id: string
+  username: string
+  avatar: string
+  bio: string
+  videoCount: number
+  followers: number
+  createdAt: string
+}
+
+export interface TrendingVideo {
+  id: string
+  title: string
+  coverUrl: string
+  viewCount: number
+  likeCount: number
+  growthRate: number
+  author: User
+  tags: string[]
+}
+
+export interface MorningReport {
+  hotTags: HotTag[]
+  newAuthors: NewAuthor[]
+  trendingVideos: TrendingVideo[]
+  reportDate: string
+}

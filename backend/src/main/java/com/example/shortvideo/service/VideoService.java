@@ -537,6 +537,16 @@ public class VideoService {
         long viewScore = video.getViewCount() != null ? video.getViewCount().longValue() : 0L;
         long likeScore = video.getLikeCount() != null ? video.getLikeCount().longValue() * 5L : 0L;
         long favoriteScore = video.getFavoriteCount() != null ? video.getFavoriteCount().longValue() * 3L : 0L;
-        return viewScore + likeScore + favoriteScore;
+        long baseScore = viewScore + likeScore + favoriteScore;
+
+        LocalDateTime createdAt = video.getCreatedAt();
+        if (createdAt == null) {
+            return baseScore;
+        }
+
+        long hoursSinceCreation = java.time.Duration.between(createdAt, LocalDateTime.now()).toHours();
+        double decayFactor = Math.pow(hoursSinceCreation + 2.0, 1.8);
+
+        return (long) (baseScore / decayFactor);
     }
 }

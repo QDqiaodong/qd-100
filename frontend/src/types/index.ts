@@ -134,3 +134,23 @@ export interface MorningReport {
   trendingVideos: TrendingVideo[]
   reportDate: string
 }
+
+export type CheckItemSeverity = 'success' | 'warning' | 'error' | 'info'
+
+export interface PublishCheckItem {
+  id: string
+  title: string
+  description: string
+  severity: CheckItemSeverity
+  suggestion: string
+  icon: string
+}
+
+export interface PublishCheckResult {
+  overallScore: number
+  totalItems: number
+  passedItems: number
+  warningItems: number
+  errorItems: number
+  checks: PublishCheckItem[]
+}

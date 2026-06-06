@@ -424,13 +424,11 @@ public class VideoService {
 
     public MorningReportDTO getMorningReport() {
         LocalDate today = LocalDate.now();
-        LocalDateTime todayStart = today.atStartOfDay();
-        LocalDateTime yesterdayStart = today.minusDays(1).atStartOfDay();
         LocalDateTime weekAgo = today.minusDays(7).atStartOfDay();
 
-        List<MorningReportDTO.HotTagDTO> hotTags = getHotTags(todayStart);
+        List<MorningReportDTO.HotTagDTO> hotTags = getHotTags();
         List<MorningReportDTO.NewAuthorDTO> newAuthors = getNewAuthors(weekAgo);
-        List<MorningReportDTO.TrendingVideoDTO> trendingVideos = getTrendingVideos(yesterdayStart);
+        List<MorningReportDTO.TrendingVideoDTO> trendingVideos = getTrendingVideos();
 
         return MorningReportDTO.builder()
                 .hotTags(hotTags)
@@ -440,8 +438,8 @@ public class VideoService {
                 .build();
     }
 
-    private List<MorningReportDTO.HotTagDTO> getHotTags(LocalDateTime startTime) {
-        List<Object[]> results = tagRepository.findHotTagsWithStats(startTime);
+    private List<MorningReportDTO.HotTagDTO> getHotTags() {
+        List<Object[]> results = tagRepository.findHotTagsWithStats();
         List<MorningReportDTO.HotTagDTO> hotTags = new ArrayList<>();
 
         int rank = 0;
@@ -452,7 +450,7 @@ public class VideoService {
             Integer videoCount = ((Number) result[2]).intValue();
             Integer viewCount = result[3] != null ? ((Number) result[3]).intValue() : 0;
 
-            String trend = rank < 3 ? "up" : "stable";
+            String trend = rank < 3 ? "up" : (rank < 5 ? "stable" : "down");
 
             hotTags.add(MorningReportDTO.HotTagDTO.builder()
                     .id(id)
@@ -488,17 +486,37 @@ public class VideoService {
         return newAuthors;
     }
 
-    private List<MorningReportDTO.TrendingVideoDTO> getTrendingVideos(LocalDateTime startTime) {
+    private List<MorningReportDTO.TrendingVideoDTO> getTrendingVideos() {
         Pageable pageable = PageRequest.of(0, 6);
-        List<Video> videos = videoRepository.findTrendingVideos(startTime, pageable);
+        List<Video> videos = videoRepository.findTrendingVideos(pageable);
         List<MorningReportDTO.TrendingVideoDTO> trendingVideos = new ArrayList<>();
+
+        if (videos.isEmpty()) {
+            return trendingVideos;
+        }
+
+        List<Long> heatScores = new ArrayList<>();
+        long maxHeatScore = 0;
+
+        for (Video video : videos) {
+            long heatScore = calculateHeatScore(video);
+            heatScores.add(heatScore);
+            if (heatScore > maxHeatScore) {
+                maxHeatScore = heatScore;
+            }
+        }
 
         for (int i = 0; i < videos.size(); i++) {
             Video video = videos.get(i);
             VideoDTO videoDTO = convertToDTO(video);
 
-            int baseGrowth = video.getViewCount() + video.getLikeCount() * 3;
-            int growthRate = Math.max(10, baseGrowth / (i + 1));
+            int growthRate;
+            if (maxHeatScore > 0) {
+                growthRate = (int) ((heatScores.get(i) * 100.0) / maxHeatScore);
+            } else {
+                growthRate = (int) (100.0 / (i + 1));
+            }
+            growthRate = Math.max(1, Math.min(100, growthRate));
 
             trendingVideos.add(MorningReportDTO.TrendingVideoDTO.builder()
                     .id(video.getId())
@@ -513,5 +531,12 @@ public class VideoService {
         }
 
         return trendingVideos;
+    }
+
+    private long calculateHeatScore(Video video) {
+        long viewScore = video.getViewCount() != null ? video.getViewCount().longValue() : 0L;
+        long likeScore = video.getLikeCount() != null ? video.getLikeCount().longValue() * 5L : 0L;
+        long favoriteScore = video.getFavoriteCount() != null ? video.getFavoriteCount().longValue() * 3L : 0L;
+        return viewScore + likeScore + favoriteScore;
     }
 }

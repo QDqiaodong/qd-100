@@ -1,6 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { CheckCircle, XCircle, Eye, Play, LayoutGrid, Users, BarChart } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import {
+  CheckCircle, XCircle, Eye, Play, LayoutGrid, Users, BarChart,
+  Search, Filter, ChevronLeft, ChevronRight, Clock, Tag,
+  SkipBack, SkipForward, Keyboard, Zap, AlertCircle, Pause,
+  Volume2, VolumeX, User, Calendar, Hash
+} from 'lucide-vue-next'
 import Navbar from '@/components/Navbar.vue'
 import { adminApi } from '@/api'
 import type { Video, PageResponse } from '@/types'
@@ -9,7 +14,6 @@ const videos = ref<Video[]>([])
 const loading = ref(false)
 const page = ref(0)
 const hasMore = ref(true)
-const selectedVideo = ref<Video | null>(null)
 const activeStatus = ref<'pending' | 'approved' | 'rejected'>('pending')
 const stats = ref({
   total: 128,
@@ -18,13 +22,74 @@ const stats = ref({
   rejected: 15
 })
 
+const searchQuery = ref('')
+const selectedTags = ref<string[]>([])
+const durationFilter = ref<'all' | 'short' | 'medium' | 'long'>('all')
+const showFilterPanel = ref(false)
+const reviewMode = ref(false)
+const currentReviewIndex = ref(-1)
+const isPlaying = ref(false)
+const isMuted = ref(false)
+const videoRef = ref<HTMLVideoElement | null>(null)
+const currentTime = ref(0)
+const duration = ref(0)
+const showShortcuts = ref(false)
+const autoNext = ref(true)
+const actionInProgress = ref(false)
+
+const allTags = computed(() => {
+  const tagSet = new Set<string>()
+  videos.value.forEach(v => v.tags.forEach(t => tagSet.add(t)))
+  return Array.from(tagSet)
+})
+
+const filteredVideos = computed(() => {
+  let result = videos.value
+
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(v =>
+      v.title.toLowerCase().includes(query) ||
+      v.author.username.toLowerCase().includes(query) ||
+      v.description.toLowerCase().includes(query)
+    )
+  }
+
+  if (selectedTags.value.length > 0) {
+    result = result.filter(v =>
+      selectedTags.value.some(tag => v.tags.includes(tag))
+    )
+  }
+
+  if (durationFilter.value !== 'all') {
+    result = result.filter(v => {
+      if (durationFilter.value === 'short') return v.duration < 60
+      if (durationFilter.value === 'medium') return v.duration >= 60 && v.duration < 180
+      if (durationFilter.value === 'long') return v.duration >= 180
+      return true
+    })
+  }
+
+  return result
+})
+
+const currentReviewVideo = computed(() => {
+  if (currentReviewIndex.value >= 0 && currentReviewIndex.value < filteredVideos.value.length) {
+    return filteredVideos.value[currentReviewIndex.value]
+  }
+  return null
+})
+
+const hasPrev = computed(() => currentReviewIndex.value > 0)
+const hasNext = computed(() => currentReviewIndex.value < filteredVideos.value.length - 1)
+
 function fetchVideos() {
   if (loading.value || !hasMore.value) return
-  
+
   loading.value = true
   adminApi.getPendingVideos({
     page: page.value,
-    size: 10,
+    size: 20,
     status: activeStatus.value
   }).then(res => {
     const data = res.data.data as PageResponse<Video>
@@ -41,19 +106,160 @@ function fetchVideos() {
 }
 
 function approveVideo(id: string) {
+  if (actionInProgress.value) return
+  actionInProgress.value = true
+
   adminApi.updateVideoStatus(id, 'approved').then(() => {
     videos.value = videos.value.filter(v => v.id !== id)
     stats.value.pending--
     stats.value.approved++
+
+    if (reviewMode.value && autoNext.value) {
+      nextTick(() => {
+        if (currentReviewIndex.value >= filteredVideos.value.length) {
+          currentReviewIndex.value = filteredVideos.value.length - 1
+        }
+        if (filteredVideos.value.length === 0) {
+          reviewMode.value = false
+          currentReviewIndex.value = -1
+        }
+        actionInProgress.value = false
+      })
+    } else {
+      actionInProgress.value = false
+    }
+  }).catch(() => {
+    actionInProgress.value = false
   })
 }
 
 function rejectVideo(id: string) {
+  if (actionInProgress.value) return
+  actionInProgress.value = true
+
   adminApi.updateVideoStatus(id, 'rejected').then(() => {
     videos.value = videos.value.filter(v => v.id !== id)
     stats.value.pending--
     stats.value.rejected++
+
+    if (reviewMode.value && autoNext.value) {
+      nextTick(() => {
+        if (currentReviewIndex.value >= filteredVideos.value.length) {
+          currentReviewIndex.value = filteredVideos.value.length - 1
+        }
+        if (filteredVideos.value.length === 0) {
+          reviewMode.value = false
+          currentReviewIndex.value = -1
+        }
+        actionInProgress.value = false
+      })
+    } else {
+      actionInProgress.value = false
+    }
+  }).catch(() => {
+    actionInProgress.value = false
   })
+}
+
+function openReview(video: Video) {
+  const idx = filteredVideos.value.findIndex(v => v.id === video.id)
+  if (idx !== -1) {
+    currentReviewIndex.value = idx
+    reviewMode.value = true
+    nextTick(() => {
+      playVideo()
+    })
+  }
+}
+
+function closeReview() {
+  pauseVideo()
+  reviewMode.value = false
+  currentReviewIndex.value = -1
+}
+
+function prevVideo() {
+  if (hasPrev.value) {
+    pauseVideo()
+    currentReviewIndex.value--
+    nextTick(() => {
+      playVideo()
+    })
+  }
+}
+
+function nextVideo() {
+  if (hasNext.value) {
+    pauseVideo()
+    currentReviewIndex.value++
+    nextTick(() => {
+      playVideo()
+    })
+  }
+}
+
+function playVideo() {
+  if (videoRef.value) {
+    videoRef.value.play().catch(() => {})
+    isPlaying.value = true
+  }
+}
+
+function pauseVideo() {
+  if (videoRef.value) {
+    videoRef.value.pause()
+    isPlaying.value = false
+  }
+}
+
+function togglePlay() {
+  if (isPlaying.value) {
+    pauseVideo()
+  } else {
+    playVideo()
+  }
+}
+
+function toggleMute() {
+  if (videoRef.value) {
+    videoRef.value.muted = !videoRef.value.muted
+    isMuted.value = videoRef.value.muted
+  }
+}
+
+function handleTimeUpdate() {
+  if (videoRef.value) {
+    currentTime.value = videoRef.value.currentTime
+  }
+}
+
+function handleLoadedMetadata() {
+  if (videoRef.value) {
+    duration.value = videoRef.value.duration
+  }
+}
+
+function handleVideoEnded() {
+  if (autoNext.value && hasNext.value) {
+    nextVideo()
+  } else {
+    isPlaying.value = false
+  }
+}
+
+function toggleTag(tag: string) {
+  const idx = selectedTags.value.indexOf(tag)
+  if (idx === -1) {
+    selectedTags.value.push(tag)
+  } else {
+    selectedTags.value.splice(idx, 1)
+  }
+}
+
+function clearFilters() {
+  searchQuery.value = ''
+  selectedTags.value = []
+  durationFilter.value = 'all'
 }
 
 function formatDuration(seconds: number): string {
@@ -66,22 +272,98 @@ function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
+function handleKeydown(e: KeyboardEvent) {
+  if (!reviewMode.value) return
+
+  switch (e.key) {
+    case 'ArrowLeft':
+    case 'j':
+    case 'J':
+      e.preventDefault()
+      prevVideo()
+      break
+    case 'ArrowRight':
+    case 'k':
+    case 'K':
+      e.preventDefault()
+      nextVideo()
+      break
+    case ' ':
+      e.preventDefault()
+      togglePlay()
+      break
+    case 'a':
+    case 'A':
+      e.preventDefault()
+      if (currentReviewVideo.value) {
+        approveVideo(currentReviewVideo.value.id)
+      }
+      break
+    case 'd':
+    case 'D':
+      e.preventDefault()
+      if (currentReviewVideo.value) {
+        rejectVideo(currentReviewVideo.value.id)
+      }
+      break
+    case 'Escape':
+      e.preventDefault()
+      closeReview()
+      break
+    case 'm':
+    case 'M':
+      e.preventDefault()
+      toggleMute()
+      break
+    case '?':
+      e.preventDefault()
+      showShortcuts.value = !showShortcuts.value
+      break
+  }
+}
+
+watch(() => activeStatus.value, () => {
+  videos.value = []
+  page.value = 0
+  hasMore.value = true
+  currentReviewIndex.value = -1
+  reviewMode.value = false
+  clearFilters()
+  fetchVideos()
+})
+
 onMounted(() => {
   fetchVideos()
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
 <template>
   <div class="min-h-screen bg-gray-100">
     <Navbar />
-    
+
     <div class="pt-20 pb-10">
       <div class="max-w-6xl mx-auto px-4">
-        <div class="flex items-center gap-3 mb-6">
-          <LayoutGrid class="w-8 h-8 text-primary" />
-          <h1 class="text-2xl font-bold text-gray-900">管理后台</h1>
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex items-center gap-3">
+            <LayoutGrid class="w-8 h-8 text-primary" />
+            <h1 class="text-2xl font-bold text-gray-900">管理后台</h1>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-orange-600 transition-colors"
+              @click="showShortcuts = !showShortcuts"
+            >
+              <Keyboard class="w-4 h-4" />
+              <span class="text-sm">快捷键</span>
+            </button>
+          </div>
         </div>
-        
+
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div class="bg-white rounded-xl p-4 shadow-sm">
             <div class="flex items-center gap-3">
@@ -94,7 +376,7 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          
+
           <div class="bg-white rounded-xl p-4 shadow-sm">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
@@ -106,7 +388,7 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          
+
           <div class="bg-white rounded-xl p-4 shadow-sm">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -118,7 +400,7 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          
+
           <div class="bg-white rounded-xl p-4 shadow-sm">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
@@ -131,17 +413,17 @@ onMounted(() => {
             </div>
           </div>
         </div>
-        
+
         <div class="bg-white rounded-xl shadow-lg overflow-hidden">
           <div class="flex border-b border-gray-100">
             <button
               class="flex-1 py-4 text-center font-medium transition-colors relative"
               :class="activeStatus === 'pending' ? 'text-primary' : 'text-gray-500 hover:text-gray-700'"
-              @click="activeStatus = 'pending'; videos = []; page = 0; hasMore = true; fetchVideos()"
+              @click="activeStatus = 'pending'"
             >
               <Eye class="w-5 h-5 mx-auto mb-1" />
               <span>待审核</span>
-              <div 
+              <div
                 v-if="activeStatus === 'pending'"
                 class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
               />
@@ -149,11 +431,11 @@ onMounted(() => {
             <button
               class="flex-1 py-4 text-center font-medium transition-colors relative"
               :class="activeStatus === 'approved' ? 'text-green-600' : 'text-gray-500 hover:text-gray-700'"
-              @click="activeStatus = 'approved'; videos = []; page = 0; hasMore = true; fetchVideos()"
+              @click="activeStatus = 'approved'"
             >
               <CheckCircle class="w-5 h-5 mx-auto mb-1" />
               <span>已通过</span>
-              <div 
+              <div
                 v-if="activeStatus === 'approved'"
                 class="absolute bottom-0 left-0 right-0 h-0.5 bg-green-600"
               />
@@ -161,32 +443,137 @@ onMounted(() => {
             <button
               class="flex-1 py-4 text-center font-medium transition-colors relative"
               :class="activeStatus === 'rejected' ? 'text-red-600' : 'text-gray-500 hover:text-gray-700'"
-              @click="activeStatus = 'rejected'; videos = []; page = 0; hasMore = true; fetchVideos()"
+              @click="activeStatus = 'rejected'"
             >
               <XCircle class="w-5 h-5 mx-auto mb-1" />
               <span>已拒绝</span>
-              <div 
+              <div
                 v-if="activeStatus === 'rejected'"
                 class="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600"
               />
             </button>
           </div>
-          
+
+          <div class="p-4 border-b border-gray-100 bg-gray-50">
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex-1 min-w-[200px] relative">
+                <Search class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  placeholder="搜索标题、作者或描述..."
+                  class="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white"
+                />
+              </div>
+
+              <button
+                class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium transition-colors bg-white"
+                :class="showFilterPanel ? 'bg-primary/10 border-primary/30 text-primary' : 'text-gray-600 hover:bg-gray-100'"
+                @click="showFilterPanel = !showFilterPanel"
+              >
+                <Filter class="w-4 h-4" />
+                <span>筛选</span>
+                <span
+                  v-if="selectedTags.length > 0 || durationFilter !== 'all'"
+                  class="w-5 h-5 bg-primary text-white text-xs rounded-full flex items-center justify-center"
+                >
+                  {{ selectedTags.length + (durationFilter !== 'all' ? 1 : 0) }}
+                </span>
+              </button>
+
+              <button
+                v-if="activeStatus === 'pending' && filteredVideos.length > 0"
+                class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors"
+                @click="openReview(filteredVideos[0])"
+              >
+                <Zap class="w-4 h-4" />
+                <span>密集审核</span>
+              </button>
+
+              <div
+                v-if="(selectedTags.length > 0 || searchQuery || durationFilter !== 'all')"
+                class="flex items-center gap-2"
+              >
+                <span class="text-sm text-gray-500">
+                  筛选结果: {{ filteredVideos.length }} 条
+                </span>
+                <button
+                  class="text-sm text-primary hover:underline"
+                  @click="clearFilters"
+                >
+                  清除筛选
+                </button>
+              </div>
+            </div>
+
+            <div
+              v-if="showFilterPanel"
+              class="mt-4 pt-4 border-t border-gray-200 space-y-4"
+            >
+              <div>
+                <div class="flex items-center gap-2 mb-2">
+                  <Clock class="w-4 h-4 text-gray-500" />
+                  <span class="text-sm font-medium text-gray-700">视频时长</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="opt in [
+                      { value: 'all', label: '全部' },
+                      { value: 'short', label: '< 1分钟' },
+                      { value: 'medium', label: '1-3分钟' },
+                      { value: 'long', label: '> 3分钟' }
+                    ]"
+                    :key="opt.value"
+                    class="px-3 py-1.5 rounded-full text-sm transition-colors"
+                    :class="durationFilter === opt.value
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    @click="durationFilter = opt.value as any"
+                  >
+                    {{ opt.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="allTags.length > 0">
+                <div class="flex items-center gap-2 mb-2">
+                  <Tag class="w-4 h-4 text-gray-500" />
+                  <span class="text-sm font-medium text-gray-700">标签筛选</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="tag in allTags"
+                    :key="tag"
+                    class="px-3 py-1.5 rounded-full text-sm transition-colors flex items-center gap-1"
+                    :class="selectedTags.includes(tag)
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    @click="toggleTag(tag)"
+                  >
+                    <Hash class="w-3 h-3" />
+                    {{ tag }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="divide-y divide-gray-100">
-            <div 
-              v-for="video in videos" 
+            <div
+              v-for="video in filteredVideos"
               :key="video.id"
-              class="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors"
+              class="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors cursor-pointer group"
+              @click="openReview(video)"
             >
               <div class="relative w-32 h-18 bg-black rounded-lg overflow-hidden flex-shrink-0">
-                <img 
-                  :src="video.coverUrl || 'https://neeko-copilot.bytedance.net/api/text_to_image?prompt=video%20thumbnail%20abstract&image_size=landscape_4_3'" 
+                <img
+                  :src="video.coverUrl || 'https://neeko-copilot.bytedance.net/api/text_to_image?prompt=video%20thumbnail%20abstract&image_size=landscape_4_3'"
                   :alt="video.title"
                   class="w-full h-full object-cover"
                 />
-                <button 
-                  class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity"
-                  @click="selectedVideo = video"
+                <button
+                  class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                  @click.stop="openReview(video)"
                 >
                   <Play class="w-8 h-8 text-white" />
                 </button>
@@ -194,7 +581,7 @@ onMounted(() => {
                   {{ formatDuration(video.duration) }}
                 </div>
               </div>
-              
+
               <div class="flex-1 min-w-0">
                 <h3 class="font-medium text-gray-900 truncate">{{ video.title }}</h3>
                 <div class="flex items-center gap-4 mt-1 text-sm text-gray-500">
@@ -204,9 +591,18 @@ onMounted(() => {
                   </span>
                   <span>{{ formatDate(video.createdAt) }}</span>
                 </div>
+                <div class="flex flex-wrap gap-1 mt-2">
+                  <span
+                    v-for="tag in video.tags.slice(0, 3)"
+                    :key="tag"
+                    class="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full"
+                  >
+                    #{{ tag }}
+                  </span>
+                </div>
               </div>
-              
-              <div class="flex gap-2">
+
+              <div class="flex gap-2" @click.stop>
                 <button
                   v-if="activeStatus === 'pending'"
                   class="px-4 py-2 bg-green-50 text-green-600 rounded-lg font-medium hover:bg-green-100 transition-colors flex items-center gap-1"
@@ -226,39 +622,323 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          
+
           <div v-if="loading" class="flex justify-center py-8">
             <div class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-          
-          <div v-if="!hasMore && videos.length > 0" class="text-center py-8 text-gray-500">
+
+          <div v-if="!hasMore && filteredVideos.length > 0" class="text-center py-8 text-gray-500">
             已经到底了
           </div>
-          
-          <div v-if="videos.length === 0 && !loading" class="text-center py-16">
+
+          <div v-if="filteredVideos.length === 0 && !loading" class="text-center py-16">
             <div class="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
               <LayoutGrid class="w-10 h-10 text-gray-400" />
             </div>
             <p class="text-gray-500">暂无{{ activeStatus === 'pending' ? '待审核' : activeStatus === 'approved' ? '已通过' : '已拒绝' }}的视频</p>
           </div>
         </div>
-        
-        <div 
-          v-if="selectedVideo" 
-          class="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
-          @click="selectedVideo = null"
-        >
-          <div 
-            class="bg-black rounded-xl overflow-hidden max-w-4xl w-full mx-4 aspect-video"
-            @click.stop
+      </div>
+    </div>
+
+    <div
+      v-if="reviewMode && currentReviewVideo"
+      class="fixed inset-0 bg-black/95 z-50 flex flex-col"
+    >
+      <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <div class="flex items-center gap-4">
+          <button
+            class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            @click="closeReview"
           >
-            <video 
-              :src="selectedVideo.videoUrl" 
-              class="w-full h-full object-contain" 
-              controls
-            />
+            <ChevronLeft class="w-5 h-5 text-white" />
+          </button>
+          <div>
+            <h2 class="text-white font-semibold text-lg">密集审核模式</h2>
+            <p class="text-white/50 text-sm">
+              {{ currentReviewIndex + 1 }} / {{ filteredVideos.length }}
+              <span class="mx-2">·</span>
+              剩余 {{ filteredVideos.length - currentReviewIndex - 1 }} 条待审
+            </p>
           </div>
         </div>
+
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <span class="text-white/70 text-sm">自动下一条</span>
+            <button
+              class="w-12 h-6 rounded-full transition-colors relative"
+              :class="autoNext ? 'bg-primary' : 'bg-white/20'"
+              @click="autoNext = !autoNext"
+            >
+              <div
+                class="absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all"
+                :class="autoNext ? 'left-6' : 'left-0.5'"
+              />
+            </button>
+          </div>
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 text-white/70 text-sm hover:bg-white/20 transition-colors"
+            @click="showShortcuts = !showShortcuts"
+          >
+            <Keyboard class="w-4 h-4" />
+            <span>快捷键</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 flex overflow-hidden">
+        <div class="flex-1 flex items-center justify-center p-6">
+          <div class="relative w-full max-w-4xl aspect-video bg-black rounded-xl overflow-hidden">
+            <video
+              ref="videoRef"
+              :src="currentReviewVideo.videoUrl"
+              class="w-full h-full object-contain"
+              @timeupdate="handleTimeUpdate"
+              @loadedmetadata="handleLoadedMetadata"
+              @ended="handleVideoEnded"
+            />
+
+            <div
+              v-if="!isPlaying"
+              class="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer"
+              @click="togglePlay"
+            >
+              <div class="w-20 h-20 rounded-full bg-white/90 flex items-center justify-center hover:scale-110 transition-transform">
+                <Play class="w-10 h-10 text-primary ml-1" />
+              </div>
+            </div>
+
+            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4">
+              <div class="flex items-center gap-4">
+                <button
+                  class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                  @click="togglePlay"
+                >
+                  <Pause v-if="isPlaying" class="w-5 h-5 text-white" />
+                  <Play v-else class="w-5 h-5 text-white ml-0.5" />
+                </button>
+
+                <div class="flex-1 text-white text-sm">
+                  {{ formatDuration(currentTime) }} / {{ formatDuration(duration) }}
+                </div>
+
+                <button
+                  class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                  @click="toggleMute"
+                >
+                  <VolumeX v-if="isMuted" class="w-5 h-5 text-white" />
+                  <Volume2 v-else class="w-5 h-5 text-white" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="w-96 border-l border-white/10 bg-white/5 flex flex-col">
+          <div class="p-6 border-b border-white/10">
+            <h3 class="text-white font-semibold text-lg mb-2">{{ currentReviewVideo.title }}</h3>
+            <p class="text-white/70 text-sm mb-4">{{ currentReviewVideo.description }}</p>
+
+            <div class="flex flex-wrap gap-2 mb-4">
+              <span
+                v-for="tag in currentReviewVideo.tags"
+                :key="tag"
+                class="text-xs px-3 py-1 bg-white/10 text-white/80 rounded-full"
+              >
+                #{{ tag }}
+              </span>
+            </div>
+
+            <div class="space-y-3">
+              <div class="flex items-center gap-3 text-white/70 text-sm">
+                <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                  <User class="w-4 h-4" />
+                </div>
+                <div class="flex-1">
+                  <div class="text-white font-medium">{{ currentReviewVideo.author.username }}</div>
+                  <div class="text-white/50 text-xs">作者</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-3 text-white/70 text-sm">
+                <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                  <Clock class="w-4 h-4" />
+                </div>
+                <div class="flex-1">
+                  <div class="text-white">{{ formatDuration(currentReviewVideo.duration) }}</div>
+                  <div class="text-white/50 text-xs">视频时长</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-3 text-white/70 text-sm">
+                <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                  <Calendar class="w-4 h-4" />
+                </div>
+                <div class="flex-1">
+                  <div class="text-white">{{ formatDate(currentReviewVideo.createdAt) }}</div>
+                  <div class="text-white/50 text-xs">上传时间</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6 border-b border-white/10">
+            <h4 class="text-white/70 text-sm font-medium mb-3">违规类型标记</h4>
+            <div class="flex flex-wrap gap-2">
+              <span class="text-xs px-3 py-1.5 bg-white/10 text-white/70 rounded-lg cursor-pointer hover:bg-white/20 transition-colors">
+                低俗内容
+              </span>
+              <span class="text-xs px-3 py-1.5 bg-white/10 text-white/70 rounded-lg cursor-pointer hover:bg-white/20 transition-colors">
+                版权问题
+              </span>
+              <span class="text-xs px-3 py-1.5 bg-white/10 text-white/70 rounded-lg cursor-pointer hover:bg-white/20 transition-colors">
+                不良引导
+              </span>
+              <span class="text-xs px-3 py-1.5 bg-white/10 text-white/70 rounded-lg cursor-pointer hover:bg-white/20 transition-colors">
+                虚假信息
+              </span>
+            </div>
+          </div>
+
+          <div class="flex-1 flex flex-col justify-end p-6 space-y-3">
+            <button
+              class="w-full py-4 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="actionInProgress"
+              @click="approveVideo(currentReviewVideo.id)"
+            >
+              <CheckCircle class="w-5 h-5" />
+              <span>通过审核</span>
+              <span class="text-green-200 text-sm">(A)</span>
+            </button>
+
+            <button
+              class="w-full py-4 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="actionInProgress"
+              @click="rejectVideo(currentReviewVideo.id)"
+            >
+              <XCircle class="w-5 h-5" />
+              <span>拒绝审核</span>
+              <span class="text-red-200 text-sm">(D)</span>
+            </button>
+
+            <div class="flex gap-3">
+              <button
+                class="flex-1 py-3 bg-white/10 text-white rounded-xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-30"
+                :disabled="!hasPrev"
+                @click="prevVideo"
+              >
+                <SkipBack class="w-4 h-4" />
+                <span>上一条</span>
+              </button>
+              <button
+                class="flex-1 py-3 bg-white/10 text-white rounded-xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-30"
+                :disabled="!hasNext"
+                @click="nextVideo"
+              >
+                <span>下一条</span>
+                <SkipForward class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button
+        class="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all disabled:opacity-20"
+        :disabled="!hasPrev"
+        @click="prevVideo"
+      >
+        <ChevronLeft class="w-6 h-6 text-white" />
+      </button>
+      <button
+        class="absolute right-96 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all disabled:opacity-20"
+        :disabled="!hasNext"
+        @click="nextVideo"
+      >
+        <ChevronRight class="w-6 h-6 text-white" />
+      </button>
+    </div>
+
+    <div
+      v-if="reviewMode && showShortcuts"
+      class="fixed inset-0 bg-black/80 z-60 flex items-center justify-center"
+      @click="showShortcuts = false"
+    >
+      <div
+        class="bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4"
+        @click.stop
+      >
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-white font-bold text-xl">键盘快捷键</h3>
+          <button
+            class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+            @click="showShortcuts = false"
+          >
+            &times;
+          </button>
+        </div>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-white/70">播放 / 暂停</span>
+            <kbd class="px-3 py-1 bg-white/10 text-white rounded text-sm">空格</kbd>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-white/70">上一条视频</span>
+            <div class="flex gap-1">
+              <kbd class="px-3 py-1 bg-white/10 text-white rounded text-sm">←</kbd>
+              <kbd class="px-3 py-1 bg-white/10 text-white rounded text-sm">J</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-white/70">下一条视频</span>
+            <div class="flex gap-1">
+              <kbd class="px-3 py-1 bg-white/10 text-white rounded text-sm">→</kbd>
+              <kbd class="px-3 py-1 bg-white/10 text-white rounded text-sm">K</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-white/70">通过审核</span>
+            <kbd class="px-3 py-1 bg-green-500 text-white rounded text-sm">A</kbd>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-white/70">拒绝审核</span>
+            <kbd class="px-3 py-1 bg-red-500 text-white rounded text-sm">D</kbd>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-white/70">静音 / 取消静音</span>
+            <kbd class="px-3 py-1 bg-white/10 text-white rounded text-sm">M</kbd>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-white/70">退出审核模式</span>
+            <kbd class="px-3 py-1 bg-white/10 text-white rounded text-sm">Esc</kbd>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-white/70">显示快捷键</span>
+            <kbd class="px-3 py-1 bg-white/10 text-white rounded text-sm">?</kbd>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="!reviewMode && activeStatus === 'pending' && stats.pending > 0"
+      class="fixed bottom-6 right-6 z-40"
+    >
+      <div class="bg-white rounded-xl shadow-lg p-4 flex items-center gap-3">
+        <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+          <AlertCircle class="w-6 h-6 text-yellow-600" />
+        </div>
+        <div>
+          <p class="text-2xl font-bold text-gray-900">{{ stats.pending }}</p>
+          <p class="text-sm text-gray-500">条待审核</p>
+        </div>
+        <button
+          v-if="filteredVideos.length > 0"
+          class="ml-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex items-center gap-1"
+          @click="openReview(filteredVideos[0])"
+        >
+          <Zap class="w-4 h-4" />
+          开始审核
+        </button>
       </div>
     </div>
   </div>

@@ -79,23 +79,30 @@ public class HeatSnapshotService {
 
     @Transactional
     public void generateAllSnapshots(LocalDateTime snapshotTime) {
-        if (tagHeatSnapshotRepository.existsBySnapshotTime(snapshotTime)
-                && videoHeatSnapshotRepository.existsBySnapshotTime(snapshotTime)
-                && authorHeatSnapshotRepository.existsBySnapshotTime(snapshotTime)) {
-            logger.warn("快照时间 {} 已存在，跳过生成", snapshotTime);
+        LocalDateTime normalizedTime = normalizeToHour(snapshotTime);
+        if (tagHeatSnapshotRepository.existsBySnapshotTime(normalizedTime)
+                && videoHeatSnapshotRepository.existsBySnapshotTime(normalizedTime)
+                && authorHeatSnapshotRepository.existsBySnapshotTime(normalizedTime)) {
+            logger.warn("快照时间 {} 已存在，跳过生成", normalizedTime);
             return;
         }
 
-        generateVideoHeatSnapshots(snapshotTime);
-        generateTagHeatSnapshots(snapshotTime);
-        generateAuthorHeatSnapshots(snapshotTime);
+        generateVideoHeatSnapshots(normalizedTime);
+        generateTagHeatSnapshots(normalizedTime);
+        generateAuthorHeatSnapshots(normalizedTime);
+    }
+
+    private LocalDateTime normalizeToHour(LocalDateTime time) {
+        return time != null ? time.truncatedTo(ChronoUnit.HOURS)
+                : LocalDateTime.now().truncatedTo(ChronoUnit.HOURS);
     }
 
     @Transactional
     public void generateVideoHeatSnapshots(LocalDateTime snapshotTime) {
+        LocalDateTime normalizedTime = normalizeToHour(snapshotTime);
         logger.info("开始生成作品热度快照...");
 
-        if (videoHeatSnapshotRepository.existsBySnapshotTime(snapshotTime)) {
+        if (videoHeatSnapshotRepository.existsBySnapshotTime(normalizedTime)) {
             logger.info("作品热度快照已存在，跳过");
             return;
         }
@@ -115,7 +122,7 @@ public class HeatSnapshotService {
         int rank = 1;
         for (Video video : hotVideos) {
             VideoHeatSnapshot snapshot = VideoHeatSnapshot.builder()
-                    .snapshotTime(snapshotTime)
+                    .snapshotTime(normalizedTime)
                     .videoId(video.getId())
                     .title(video.getTitle())
                     .coverUrl(video.getCoverUrl())
@@ -138,9 +145,10 @@ public class HeatSnapshotService {
 
     @Transactional
     public void generateTagHeatSnapshots(LocalDateTime snapshotTime) {
+        LocalDateTime normalizedTime = normalizeToHour(snapshotTime);
         logger.info("开始生成标签热度快照...");
 
-        if (tagHeatSnapshotRepository.existsBySnapshotTime(snapshotTime)) {
+        if (tagHeatSnapshotRepository.existsBySnapshotTime(normalizedTime)) {
             logger.info("标签热度快照已存在，跳过");
             return;
         }
@@ -160,7 +168,7 @@ public class HeatSnapshotService {
             double heatScore = calculateTagHeatScore(viewCount, likeCount, favoriteCount, videoCount);
 
             TagHeatSnapshot snapshot = TagHeatSnapshot.builder()
-                    .snapshotTime(snapshotTime)
+                    .snapshotTime(normalizedTime)
                     .tagId(tagId)
                     .tagName(tagName)
                     .heatScore(heatScore)
@@ -191,9 +199,10 @@ public class HeatSnapshotService {
 
     @Transactional
     public void generateAuthorHeatSnapshots(LocalDateTime snapshotTime) {
+        LocalDateTime normalizedTime = normalizeToHour(snapshotTime);
         logger.info("开始生成作者热度快照...");
 
-        if (authorHeatSnapshotRepository.existsBySnapshotTime(snapshotTime)) {
+        if (authorHeatSnapshotRepository.existsBySnapshotTime(normalizedTime)) {
             logger.info("作者热度快照已存在，跳过");
             return;
         }
@@ -228,7 +237,7 @@ public class HeatSnapshotService {
                     author.getFollowers(), videoCount);
 
             AuthorHeatSnapshot snapshot = AuthorHeatSnapshot.builder()
-                    .snapshotTime(snapshotTime)
+                    .snapshotTime(normalizedTime)
                     .authorId(authorId)
                     .authorName(author.getUsername())
                     .avatar(author.getAvatar())

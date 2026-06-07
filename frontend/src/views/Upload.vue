@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Upload as UploadIcon, X, Image, Tag, Type, CheckCircle, ClipboardCheck, Save, FileText } from 'lucide-vue-next'
+import { Upload as UploadIcon, X, Image, Tag, Type, CheckCircle, ClipboardCheck, Save } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import Navbar from '@/components/Navbar.vue'
 import PublishCheckup from '@/components/PublishCheckup.vue'
@@ -289,37 +289,6 @@ function handleCheckup() {
 
 function handleBackToEdit() {
   showCheckup.value = false
-}
-
-function handleSubmit() {
-  if (!file.value || !title.value.trim()) {
-    return
-  }
-  
-  isUploading.value = true
-  uploadProgress.value = 0
-  
-  const formData = new FormData()
-  formData.append('file', file.value)
-  formData.append('title', title.value)
-  formData.append('description', description.value)
-  
-  tagList.value.forEach((tag, index) => {
-    formData.append(`tags[${index}]`, tag)
-  })
-  
-  videoApi.uploadVideo(formData).then(() => {
-    isUploading.value = false
-    uploadProgress.value = 100
-    uploadSuccess.value = true
-    showCheckup.value = false
-    
-    setTimeout(() => {
-      resetForm()
-    }, 2000)
-  }).catch(() => {
-    isUploading.value = false
-  })
 }
 
 function handleSaveDraft() {

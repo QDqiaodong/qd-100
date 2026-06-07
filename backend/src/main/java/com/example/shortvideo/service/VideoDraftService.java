@@ -26,17 +26,20 @@ public class VideoDraftService {
     private final TagRepository tagRepository;
     private final VideoTagRepository videoTagRepository;
     private final MinIOService minIOService;
+    private final TagService tagService;
 
     public VideoDraftService(VideoDraftRepository videoDraftRepository,
                              VideoRepository videoRepository,
                              TagRepository tagRepository,
                              VideoTagRepository videoTagRepository,
-                             MinIOService minIOService) {
+                             MinIOService minIOService,
+                             TagService tagService) {
         this.videoDraftRepository = videoDraftRepository;
         this.videoRepository = videoRepository;
         this.tagRepository = tagRepository;
         this.videoTagRepository = videoTagRepository;
         this.minIOService = minIOService;
+        this.tagService = tagService;
     }
 
     public Page<VideoDraftDTO> getDraftList(Long userId, Pageable pageable) {
@@ -146,16 +149,13 @@ public class VideoDraftService {
 
         video = videoRepository.save(video);
 
-        for (String tagName : tagList) {
-            String trimmedName = tagName.trim();
-            if (trimmedName.isEmpty()) continue;
-
-            Tag tag = tagRepository.findByName(trimmedName).orElse(null);
-            if (tag == null) {
-                tag = Tag.builder().name(trimmedName).build();
-                tag = tagRepository.save(tag);
-            }
-
+        List<String> trimmedTags = tagList.stream()
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+        
+        List<Tag> normalizedTags = tagService.normalizeTags(trimmedTags);
+        for (Tag tag : normalizedTags) {
             VideoTag videoTag = VideoTag.builder()
                     .videoId(video.getId())
                     .tagId(tag.getId())

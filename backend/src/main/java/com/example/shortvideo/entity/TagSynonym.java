@@ -9,23 +9,22 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "tags")
+@Table(name = "tag_synonyms")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Tag {
+public class TagSynonym {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true, length = 50)
-    private String name;
+    @Column(name = "canonical_tag_id", nullable = false)
+    private Long canonicalTagId;
     
-    @Column(name = "is_canonical")
-    @Builder.Default
-    private Boolean isCanonical = true;
+    @Column(name = "synonym_tag_id", nullable = false, unique = true)
+    private Long synonymTagId;
     
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

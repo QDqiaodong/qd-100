@@ -169,3 +169,22 @@ export interface VideoDraft {
   createdAt: string
   updatedAt: string
 }
+
+export interface Tag {
+  id: string
+  name: string
+  isCanonical: boolean
+  createdAt?: string
+}
+
+export interface SynonymTag {
+  id: string
+  name: string
+}
+
+export interface TagWithSynonyms {
+  id: string
+  name: string
+  isCanonical: boolean
+  synonyms: SynonymTag[]
+}

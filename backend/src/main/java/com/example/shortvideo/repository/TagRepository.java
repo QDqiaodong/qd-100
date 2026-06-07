@@ -12,6 +12,13 @@ import java.util.Optional;
 public interface TagRepository extends JpaRepository<Tag, Long> {
     Optional<Tag> findByName(String name);
     boolean existsByName(String name);
+    
+    List<Tag> findByIsCanonicalTrue();
+    
+    List<Tag> findByIsCanonicalFalse();
+    
+    @Query("SELECT t FROM Tag t WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    List<Tag> searchByName(String keyword);
 
     @Query("SELECT t.id, t.name, COUNT(vt.videoId) as videoCount, " +
            "SUM(v.viewCount) as viewCount, SUM(v.likeCount) as likeCount, SUM(v.favoriteCount) as favoriteCount " +
@@ -21,4 +28,13 @@ public interface TagRepository extends JpaRepository<Tag, Long> {
            "GROUP BY t.id, t.name " +
            "ORDER BY (SUM(v.viewCount) + SUM(v.likeCount) * 3 + SUM(v.favoriteCount) * 2) DESC")
     List<Object[]> findHotTagsWithStats();
+    
+    @Query("SELECT t.id, t.name, COUNT(vt.videoId) as videoCount, " +
+           "SUM(v.viewCount) as viewCount, SUM(v.likeCount) as likeCount, SUM(v.favoriteCount) as favoriteCount " +
+           "FROM Tag t JOIN VideoTag vt ON t.id = vt.tagId " +
+           "JOIN Video v ON vt.videoId = v.id " +
+           "WHERE v.status = 'approved' AND t.isCanonical = true " +
+           "GROUP BY t.id, t.name " +
+           "ORDER BY (SUM(v.viewCount) + SUM(v.likeCount) * 3 + SUM(v.favoriteCount) * 2) DESC")
+    List<Object[]> findHotCanonicalTagsWithStats();
 }

@@ -41,7 +41,19 @@ CREATE TABLE IF NOT EXISTS videos (
 CREATE TABLE IF NOT EXISTS tags (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
+    is_canonical BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tag_synonyms (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    canonical_tag_id BIGINT NOT NULL,
+    synonym_tag_id BIGINT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_synonym_tag (synonym_tag_id),
+    FOREIGN KEY (canonical_tag_id) REFERENCES tags(id),
+    FOREIGN KEY (synonym_tag_id) REFERENCES tags(id),
+    INDEX idx_canonical_tag (canonical_tag_id)
 );
 
 CREATE TABLE IF NOT EXISTS video_tags (
@@ -127,7 +139,20 @@ INSERT INTO videos (user_id, title, description, cover_url, video_url, duration,
 (1, '学习分享：编程入门', '从零开始学编程', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=programming%20coding%20computer%20science&image_size=square', 'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4', 126, 'approved'),
 (1, '音乐翻唱：夜曲', '翻唱周杰伦的经典歌曲', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=music%20singing%20microphone%20performance&image_size=square', 'https://www.w3schools.com/html/mov_bbb.mp4', 10, 'approved');
 
-INSERT INTO tags (name) VALUES ('美食'), ('旅行'), ('健身'), ('学习'), ('音乐');
+INSERT INTO tags (name, is_canonical) VALUES 
+('美食', TRUE), ('旅行', TRUE), ('健身', TRUE), ('学习', TRUE), ('音乐', TRUE),
+('美食打卡', FALSE), ('健身打卡', FALSE), ('跑步', FALSE), ('夜跑', FALSE),
+('减脂餐', FALSE), ('健身餐', FALSE), ('瑜伽', FALSE), ('晨跑', FALSE),
+('读书', FALSE), ('编程', FALSE), ('知识分享', FALSE), ('学习打卡', FALSE),
+('翻唱', FALSE), ('原创音乐', FALSE), ('唱歌', FALSE),
+('旅行日记', FALSE), ('旅游', FALSE), ('风景', FALSE);
+
+INSERT INTO tag_synonyms (canonical_tag_id, synonym_tag_id) VALUES 
+(1, 6),
+(3, 7), (3, 8), (3, 9), (3, 10), (3, 11), (3, 12), (3, 13),
+(4, 14), (4, 15), (4, 16), (4, 17),
+(5, 18), (5, 19), (5, 20),
+(2, 21), (2, 22), (2, 23);
 
 INSERT INTO video_tags (video_id, tag_id) VALUES 
 (1, 1), (2, 2), (3, 3), (4, 4), (5, 5);

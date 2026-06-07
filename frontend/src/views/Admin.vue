@@ -4,11 +4,11 @@ import {
   CheckCircle, XCircle, Eye, Play, LayoutGrid, Users, BarChart,
   Search, Filter, ChevronLeft, ChevronRight, Clock, Tag,
   SkipBack, SkipForward, Keyboard, Zap, AlertCircle, Pause,
-  Volume2, VolumeX, User, Calendar, Hash
+  Volume2, VolumeX, User, Calendar, Hash, Plus, X
 } from 'lucide-vue-next'
 import Navbar from '@/components/Navbar.vue'
-import { adminApi } from '@/api'
-import type { Video, PageResponse } from '@/types'
+import { adminApi, tagApi } from '@/api'
+import type { Video, PageResponse, TagWithSynonyms } from '@/types'
 
 const videos = ref<Video[]>([])
 const loading = ref(false)
@@ -36,6 +36,69 @@ const duration = ref(0)
 const showShortcuts = ref(false)
 const autoNext = ref(true)
 const actionInProgress = ref(false)
+
+const activeTab = ref<'videos' | 'tags'>('videos')
+
+const tagList = ref<TagWithSynonyms[]>([])
+const tagsLoading = ref(false)
+const showAddSynonymModal = ref(false)
+const selectedCanonicalTag = ref<TagWithSynonyms | null>(null)
+const newSynonymName = ref('')
+const tagSearchQuery = ref('')
+
+function fetchTags() {
+  tagsLoading.value = true
+  tagApi.getAllTags().then(res => {
+    tagList.value = res.data.data
+    tagsLoading.value = false
+  }).catch(() => {
+    tagsLoading.value = false
+  })
+}
+
+const filteredTagList = computed(() => {
+  if (!tagSearchQuery.value.trim()) return tagList.value
+  const query = tagSearchQuery.value.toLowerCase()
+  return tagList.value.filter(tag =>
+    tag.name.toLowerCase().includes(query) ||
+    tag.synonyms.some(s => s.name.toLowerCase().includes(query))
+  )
+})
+
+function openAddSynonymModal(tag: TagWithSynonyms) {
+  selectedCanonicalTag.value = tag
+  newSynonymName.value = ''
+  showAddSynonymModal.value = true
+}
+
+function closeAddSynonymModal() {
+  showAddSynonymModal.value = false
+  selectedCanonicalTag.value = null
+  newSynonymName.value = ''
+}
+
+function addSynonym() {
+  if (!selectedCanonicalTag.value || !newSynonymName.value.trim()) return
+  
+  tagApi.addSynonym(selectedCanonicalTag.value.name, newSynonymName.value.trim())
+    .then(() => {
+      fetchTags()
+      closeAddSynonymModal()
+    })
+    .catch(err => {
+      alert('添加失败：' + (err.response?.data?.message || err.message))
+    })
+}
+
+function removeSynonym(synonymId: string) {
+  if (!confirm('确定要移除此同义词吗？')) return
+  
+  tagApi.removeSynonym(synonymId).then(() => {
+    fetchTags()
+  }).catch(err => {
+    alert('移除失败：' + (err.response?.data?.message || err.message))
+  })
+}
 
 const allTags = computed(() => {
   const tagSet = new Set<string>()
@@ -334,6 +397,7 @@ watch(() => activeStatus.value, () => {
 
 onMounted(() => {
   fetchVideos()
+  fetchTags()
   window.addEventListener('keydown', handleKeydown)
 })
 
@@ -364,7 +428,27 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl shadow-sm mb-6 p-1 inline-flex gap-1">
+          <button
+            class="px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2"
+            :class="activeTab === 'videos' ? 'bg-primary text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
+            @click="activeTab = 'videos'"
+          >
+            <LayoutGrid class="w-4 h-4" />
+            视频审核
+          </button>
+          <button
+            class="px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2"
+            :class="activeTab === 'tags' ? 'bg-primary text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
+            @click="activeTab = 'tags'"
+          >
+            <Tag class="w-4 h-4" />
+            标签管理
+          </button>
+        </div>
+
+        <div v-if="activeTab === 'videos'">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div class="bg-white rounded-xl p-4 shadow-sm">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -636,6 +720,95 @@ onUnmounted(() => {
               <LayoutGrid class="w-10 h-10 text-gray-400" />
             </div>
             <p class="text-gray-500">暂无{{ activeStatus === 'pending' ? '待审核' : activeStatus === 'approved' ? '已通过' : '已拒绝' }}的视频</p>
+          </div>
+        </div>
+        </div>
+
+        <div v-if="activeTab === 'tags'" class="space-y-4">
+          <div class="bg-white rounded-xl shadow-sm p-4">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <Tag class="w-5 h-5 text-primary" />
+                <h2 class="text-lg font-semibold text-gray-900">标签同义词管理</h2>
+              </div>
+              <div class="flex-1 max-w-xs ml-4">
+                <div class="relative">
+                  <Search class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    v-model="tagSearchQuery"
+                    type="text"
+                    placeholder="搜索标签..."
+                    class="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <p class="text-sm text-gray-500 mb-4">
+              将语义相近的标签归并到统一的主标签下，提升分类推荐的一致性和浏览命中率。
+            </p>
+          </div>
+
+          <div v-if="tagsLoading" class="flex justify-center py-12">
+            <div class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+
+          <div v-else-if="filteredTagList.length === 0" class="bg-white rounded-xl shadow-sm p-12 text-center">
+            <div class="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <Tag class="w-10 h-10 text-gray-400" />
+            </div>
+            <p class="text-gray-500">暂无标签数据</p>
+          </div>
+
+          <div v-else class="grid gap-4">
+            <div
+              v-for="tag in filteredTagList"
+              :key="tag.id"
+              class="bg-white rounded-xl shadow-sm p-5 hover:shadow-md transition-shadow"
+            >
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Hash class="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-gray-900 text-lg">{{ tag.name }}</h3>
+                    <p class="text-xs text-gray-500">主标签</p>
+                  </div>
+                </div>
+                <button
+                  class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                  @click="openAddSynonymModal(tag)"
+                >
+                  <Plus class="w-4 h-4" />
+                  添加同义词
+                </button>
+              </div>
+
+              <div class="border-t border-gray-100 pt-3">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-xs font-medium text-gray-500">同义词 ({{ tag.synonyms.length }})</span>
+                </div>
+                <div v-if="tag.synonyms.length === 0" class="text-sm text-gray-400">
+                  暂无同义词
+                </div>
+                <div v-else class="flex flex-wrap gap-2">
+                  <div
+                    v-for="synonym in tag.synonyms"
+                    :key="synonym.id"
+                    class="group flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm"
+                  >
+                    <span>#{{ synonym.name }}</span>
+                    <button
+                      class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
+                      @click="removeSynonym(synonym.id)"
+                    >
+                      <X class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -920,7 +1093,7 @@ onUnmounted(() => {
     </div>
 
     <div
-      v-if="!reviewMode && activeStatus === 'pending' && stats.pending > 0"
+      v-if="!reviewMode && activeStatus === 'pending' && stats.pending > 0 && activeTab === 'videos'"
       class="fixed bottom-6 right-6 z-40"
     >
       <div class="bg-white rounded-xl shadow-lg p-4 flex items-center gap-3">
@@ -939,6 +1112,62 @@ onUnmounted(() => {
           <Zap class="w-4 h-4" />
           开始审核
         </button>
+      </div>
+    </div>
+
+    <div
+      v-if="showAddSynonymModal"
+      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+      @click="closeAddSynonymModal"
+    >
+      <div
+        class="bg-white rounded-2xl p-6 max-w-md w-full mx-4"
+        @click.stop
+      >
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-lg font-bold text-gray-900">添加同义词</h3>
+          <button
+            class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"
+            @click="closeAddSynonymModal"
+          >
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div v-if="selectedCanonicalTag" class="mb-6">
+          <p class="text-sm text-gray-500 mb-2">主标签</p>
+          <div class="flex items-center gap-2 px-3 py-2 bg-primary/10 rounded-lg">
+            <Hash class="w-4 h-4 text-primary" />
+            <span class="font-medium text-primary">{{ selectedCanonicalTag.name }}</span>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">同义词名称</label>
+          <input
+            v-model="newSynonymName"
+            type="text"
+            placeholder="请输入同义词名称，如：夜跑、健身餐"
+            class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            @keyup.enter="addSynonym"
+          />
+        </div>
+
+        <div class="flex gap-3">
+          <button
+            class="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+            @click="closeAddSynonymModal"
+          >
+            取消
+          </button>
+          <button
+            class="flex-1 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="!newSynonymName.trim()"
+            @click="addSynonym"
+          >
+            添加
+          </button>
+        </div>
       </div>
     </div>
   </div>

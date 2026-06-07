@@ -41,6 +41,7 @@ public class VideoService {
     private final RedisService redisService;
     private final WatchProgressRepository watchProgressRepository;
     private final HeatService heatService;
+    private final TagService tagService;
     
     public VideoService(VideoRepository videoRepository, 
                        UserRepository userRepository,
@@ -49,7 +50,8 @@ public class VideoService {
                        VideoMilestoneRepository videoMilestoneRepository,
                        RedisService redisService,
                        WatchProgressRepository watchProgressRepository,
-                       HeatService heatService) {
+                       HeatService heatService,
+                       TagService tagService) {
         this.videoRepository = videoRepository;
         this.userRepository = userRepository;
         this.tagRepository = tagRepository;
@@ -58,6 +60,7 @@ public class VideoService {
         this.redisService = redisService;
         this.watchProgressRepository = watchProgressRepository;
         this.heatService = heatService;
+        this.tagService = tagService;
     }
     
     public Page<VideoDTO> getVideos(String sort, Pageable pageable) {
@@ -107,13 +110,8 @@ public class VideoService {
         video = videoRepository.save(video);
         heatService.updateHeatScore(video);
         
-        for (String tagName : tags) {
-            Tag tag = tagRepository.findByName(tagName).orElse(null);
-            if (tag == null) {
-                tag = Tag.builder().name(tagName).build();
-                tag = tagRepository.save(tag);
-            }
-            
+        List<Tag> normalizedTags = tagService.normalizeTags(tags);
+        for (Tag tag : normalizedTags) {
             VideoTag videoTag = VideoTag.builder()
                     .videoId(video.getId())
                     .tagId(tag.getId())
@@ -444,7 +442,7 @@ public class VideoService {
     }
 
     private List<MorningReportDTO.HotTagDTO> getHotTags() {
-        List<Object[]> results = tagRepository.findHotTagsWithStats();
+        List<Object[]> results = tagRepository.findHotCanonicalTagsWithStats();
         List<MorningReportDTO.HotTagDTO> hotTags = new ArrayList<>();
 
         int rank = 0;

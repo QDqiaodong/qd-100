@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone, MorningReport, VideoDraft } from '@/types'
+import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone, MorningReport, VideoDraft, Tag, TagWithSynonyms } from '@/types'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -248,6 +248,40 @@ export const adminApi = {
 
   updateVideoStatus(id: string, status: 'approved' | 'rejected') {
     return api.put<ApiResponse<void>>(`/admin/videos/${id}/status`, { status })
+  }
+}
+
+export const tagApi = {
+  getAllTags() {
+    return api.get<ApiResponse<TagWithSynonyms[]>>('/tags')
+  },
+
+  getCanonicalTags() {
+    return api.get<ApiResponse<Tag[]>>('/tags/canonical')
+  },
+
+  searchTags(keyword: string) {
+    return api.get<ApiResponse<Tag[]>>('/tags/search', { params: { keyword } })
+  },
+
+  getTagWithSynonyms(id: string) {
+    return api.get<ApiResponse<TagWithSynonyms>>(`/tags/${id}/synonyms`)
+  },
+
+  getCanonicalTag(name: string) {
+    return api.get<ApiResponse<Tag>>('/tags/canonicalize', { params: { name } })
+  },
+
+  addSynonym(canonicalName: string, synonymName: string) {
+    return api.post<ApiResponse<any>>('/tags/synonyms', { canonicalName, synonymName })
+  },
+
+  removeSynonym(synonymTagId: string) {
+    return api.delete<ApiResponse<void>>(`/tags/synonyms/${synonymTagId}`)
+  },
+
+  mergeTags(sourceTagId: string, targetTagId: string) {
+    return api.post<ApiResponse<void>>('/tags/merge', { sourceTagId, targetTagId })
   }
 }
 

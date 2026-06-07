@@ -171,7 +171,8 @@ public class VideoDraftService {
 
     public VideoDraftDTO saveOrUpdateDraft(Long draftId, Long userId, String title,
                                            String description, List<String> tags,
-                                           Integer duration, MultipartFile file) throws Exception {
+                                           Integer duration, MultipartFile file,
+                                           MultipartFile coverFile) throws Exception {
         VideoDraft draft;
         String tagsText = tags != null ? String.join(",", tags) : null;
 
@@ -192,6 +193,11 @@ public class VideoDraftService {
                 draft.setVideoFileName(file.getOriginalFilename());
                 draft.setFileStatus("uploaded");
             }
+
+            if (coverFile != null && !coverFile.isEmpty()) {
+                String coverUrl = minIOService.uploadCover(coverFile);
+                draft.setCoverUrl(coverUrl);
+            }
         } else {
             VideoDraft.VideoDraftBuilder builder = VideoDraft.builder()
                     .userId(userId)
@@ -207,6 +213,11 @@ public class VideoDraftService {
                         .fileStatus("uploaded");
             } else {
                 builder.fileStatus("not_uploaded");
+            }
+
+            if (coverFile != null && !coverFile.isEmpty()) {
+                String coverUrl = minIOService.uploadCover(coverFile);
+                builder.coverUrl(coverUrl);
             }
 
             draft = builder.status("draft").build();

@@ -303,12 +303,13 @@ public class VideoController {
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String[] tags,
             @RequestParam(required = false) Integer duration,
-            @RequestParam(value = "file", required = false) MultipartFile file) {
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "coverFile", required = false) MultipartFile coverFile) {
 
         try {
             List<String> tagList = tags != null ? Arrays.asList(tags) : null;
             VideoDraftDTO draft = videoDraftService.saveOrUpdateDraft(
-                    draftId, userId, title, description, tagList, duration, file);
+                    draftId, userId, title, description, tagList, duration, file, coverFile);
             if (draft == null) {
                 return ApiResponse.error(404, "草稿不存在");
             }

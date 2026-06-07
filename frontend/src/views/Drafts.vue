@@ -17,7 +17,7 @@ const total = ref(0)
 function loadDrafts() {
   isLoading.value = true
   videoApi.getDrafts({ page: page.value, size: size.value }).then((response) => {
-    if (response.data.code === 0 && response.data.data) {
+    if (response.data.code === 200 && response.data.data) {
       const pageData: PageResponse<VideoDraft> = response.data.data
       drafts.value = pageData.content
       total.value = pageData.totalElements
@@ -39,7 +39,7 @@ function handleDeleteDraft(draft: VideoDraft) {
   }
 
   videoApi.deleteDraft(draft.id).then((response) => {
-    if (response.data.code === 0) {
+    if (response.data.code === 200) {
       loadDrafts()
     }
   }).catch(() => {
@@ -128,8 +128,14 @@ onMounted(() => {
           >
             <div class="flex">
               <div class="w-48 h-28 flex-shrink-0 bg-gray-900 relative">
+                <img
+                  v-if="draft.coverUrl"
+                  :src="draft.coverUrl"
+                  class="w-full h-full object-cover"
+                  alt="封面"
+                />
                 <video
-                  v-if="draft.videoUrl"
+                  v-else-if="draft.videoUrl"
                   :src="draft.videoUrl"
                   class="w-full h-full object-cover"
                   muted

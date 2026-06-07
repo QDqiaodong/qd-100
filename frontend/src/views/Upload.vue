@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Upload as UploadIcon, X, Image, Tag, Type, CheckCircle, ClipboardCheck, Save } from 'lucide-vue-next'
+import { Upload as UploadIcon, X, Image, Tag, Type, CheckCircle, ClipboardCheck, Save, ImagePlus } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import Navbar from '@/components/Navbar.vue'
 import PublishCheckup from '@/components/PublishCheckup.vue'
@@ -27,6 +27,11 @@ const draftId = ref<string | null>(null)
 const isSaving = ref(false)
 const saveSuccess = ref(false)
 const isLoadingDraft = ref(false)
+
+const coverFile = ref<File | null>(null)
+const coverUrl = ref('')
+const coverInputRef = ref<HTMLInputElement | null>(null)
+const isUploadingCover = ref(false)
 
 function handleFileChange(e: Event) {
   const target = e.target as HTMLInputElement
@@ -66,6 +71,20 @@ function removeFile() {
   file.value = null
   previewUrl.value = ''
   videoDuration.value = 0
+}
+
+function handleCoverChange(e: Event) {
+  const target = e.target as HTMLInputElement
+  const files = target.files
+  if (files && files.length > 0) {
+    coverFile.value = files[0]
+    coverUrl.value = URL.createObjectURL(files[0])
+  }
+}
+
+function removeCover() {
+  coverFile.value = null
+  coverUrl.value = ''
 }
 
 const tagList = computed(() => {
@@ -292,7 +311,7 @@ function handleBackToEdit() {
 }
 
 function handleSaveDraft() {
-  if (!title.value.trim() && !file.value && !description.value.trim() && !tags.value.trim()) {
+  if (!title.value.trim() && !file.value && !description.value.trim() && !tags.value.trim() && !coverFile.value) {
     return
   }
 
@@ -305,9 +324,10 @@ function handleSaveDraft() {
     description: description.value,
     tags: tagList.value,
     duration: videoDuration.value,
-    file: file.value || undefined
+    file: file.value || undefined,
+    coverFile: coverFile.value || undefined
   }).then((response) => {
-    if (response.data.code === 0 && response.data.data) {
+    if (response.data.code === 200 && response.data.data) {
       draftId.value = response.data.data.id
       saveSuccess.value = true
       setTimeout(() => {
@@ -324,7 +344,7 @@ function handleSaveDraft() {
 function loadDraft(id: string) {
   isLoadingDraft.value = true
   videoApi.getDraft(id).then((response) => {
-    if (response.data.code === 0 && response.data.data) {
+    if (response.data.code === 200 && response.data.data) {
       const draft: VideoDraft = response.data.data
       draftId.value = draft.id
       title.value = draft.title || ''
@@ -334,6 +354,9 @@ function loadDraft(id: string) {
       
       if (draft.videoUrl) {
         previewUrl.value = draft.videoUrl
+      }
+      if (draft.coverUrl) {
+        coverUrl.value = draft.coverUrl
       }
     }
   }).catch(() => {
@@ -355,6 +378,8 @@ function resetForm() {
   checkResult.value = null
   draftId.value = null
   saveSuccess.value = false
+  coverFile.value = null
+  coverUrl.value = ''
 }
 
 function handlePublishFromDraft() {
@@ -367,7 +392,7 @@ function handlePublishFromDraft() {
 
   const doPublish = (id: string) => {
     videoApi.publishDraft(id).then((response) => {
-      if (response.data.code === 0) {
+      if (response.data.code === 200) {
         isUploading.value = false
         uploadProgress.value = 100
         uploadSuccess.value = true
@@ -390,9 +415,10 @@ function handlePublishFromDraft() {
       description: description.value,
       tags: tagList.value,
       duration: videoDuration.value,
-      file: file.value || undefined
+      file: file.value || undefined,
+      coverFile: coverFile.value || undefined
     }).then((response) => {
-      if (response.data.code === 0 && response.data.data) {
+      if (response.data.code === 200 && response.data.data) {
         doPublish(response.data.data.id)
       } else {
         isUploading.value = false
@@ -545,6 +571,42 @@ const canCheckup = computed(() => {
             
             <div class="mb-6">
               <label class="block text-sm font-medium text-gray-700 mb-2">
+                <ImagePlus class="w-4 h-4 inline mr-1" />
+                封面图片
+              </label>
+              
+              <div 
+                v-if="!coverUrl"
+                class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary transition-colors cursor-pointer"
+                @click="coverInputRef?.click()"
+              >
+                <input
+                  ref="coverInputRef"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="handleCoverChange"
+                />
+                <ImagePlus class="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                <p class="text-gray-600 text-sm">点击上传封面图片</p>
+                <p class="text-xs text-gray-400 mt-1">支持 JPG、PNG 等格式，建议尺寸 1:1</p>
+              </div>
+              
+              <div v-else class="relative">
+                <div class="aspect-video bg-gray-100 rounded-xl overflow-hidden">
+                  <img :src="coverUrl" class="w-full h-full object-cover" alt="封面预览" />
+                </div>
+                <button 
+                  class="absolute top-2 right-2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
+                  @click="removeCover"
+                >
+                  <X class="w-5 h-5 text-white" />
+                </button>
+              </div>
+            </div>
+            
+            <div class="mb-6">
+              <label class="block text-sm font-medium text-gray-700 mb-2">
                 <Type class="w-4 h-4 inline mr-1" />
                 标题
               </label>
@@ -616,7 +678,7 @@ const canCheckup = computed(() => {
             <div class="flex gap-3">
               <button
                 class="flex-1 py-3 border-2 border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                :disabled="isSaving || (!title.trim() && !file && !description.trim() && !tags.trim())"
+                :disabled="isSaving || (!title.trim() && !file && !description.trim() && !tags.trim() && !coverFile)"
                 @click="handleSaveDraft"
               >
                 <Save class="w-5 h-5" />

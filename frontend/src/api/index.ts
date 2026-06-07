@@ -116,6 +116,7 @@ export const videoApi = {
     tags?: string[]
     duration?: number
     file?: File
+    coverFile?: File
     userId?: number
   }) {
     const formData = new FormData()
@@ -129,6 +130,7 @@ export const videoApi = {
     }
     if (data.duration) formData.append('duration', data.duration.toString())
     if (data.file) formData.append('file', data.file)
+    if (data.coverFile) formData.append('coverFile', data.coverFile)
     if (data.userId) formData.append('userId', data.userId.toString())
     return api.post<ApiResponse<VideoDraft>>('/videos/drafts/save', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }

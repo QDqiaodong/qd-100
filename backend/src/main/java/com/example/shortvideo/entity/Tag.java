@@ -27,6 +27,10 @@ public class Tag {
     @Builder.Default
     private Boolean isCanonical = true;
     
+    public boolean isCanonicalTag() {
+        return isCanonical == null || isCanonical;
+    }
+    
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
     

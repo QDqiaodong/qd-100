@@ -38,7 +38,7 @@ public class TagService {
             return null;
         }
         
-        if (tag.getIsCanonical()) {
+        if (tag.isCanonicalTag()) {
             return tag;
         }
         
@@ -51,7 +51,7 @@ public class TagService {
             return null;
         }
         
-        if (tag.getIsCanonical()) {
+        if (tag.isCanonicalTag()) {
             return tag;
         }
         
@@ -101,7 +101,7 @@ public class TagService {
         if (canonicalTag == null) {
             throw new IllegalArgumentException("主标签不存在");
         }
-        if (!canonicalTag.getIsCanonical()) {
+        if (!canonicalTag.isCanonicalTag()) {
             throw new IllegalArgumentException("指定的标签不是主标签");
         }
         
@@ -128,14 +128,14 @@ public class TagService {
     @Transactional
     public TagSynonym addSynonymByName(String canonicalTagName, String synonymName) {
         Tag canonicalTag = getOrCreateTag(canonicalTagName);
-        if (!canonicalTag.getIsCanonical()) {
+        if (!canonicalTag.isCanonicalTag()) {
             Tag actualCanonical = getCanonicalTag(canonicalTag.getId());
             canonicalTag = actualCanonical;
         }
         
         Tag synonymTag = getOrCreateTag(synonymName);
         
-        if (synonymTag.getIsCanonical()) {
+        if (synonymTag.isCanonicalTag()) {
             synonymTag.setIsCanonical(false);
             tagRepository.save(synonymTag);
         } else {
@@ -197,7 +197,7 @@ public class TagService {
         return TagWithSynonymsDTO.builder()
                 .id(canonicalTag.getId())
                 .name(canonicalTag.getName())
-                .isCanonical(canonicalTag.getIsCanonical())
+                .isCanonical(canonicalTag.isCanonicalTag())
                 .synonyms(synonyms.stream()
                         .map(tag -> TagWithSynonymsDTO.SynonymTagDTO.builder()
                                 .id(tag.getId())

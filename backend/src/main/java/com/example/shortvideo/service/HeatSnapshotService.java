@@ -153,7 +153,7 @@ public class HeatSnapshotService {
             return;
         }
 
-        List<Object[]> hotTagsWithStats = tagRepository.findHotTagsWithStats();
+        List<Object[]> hotTagsWithStats = tagRepository.findHotCanonicalTagsWithStats();
 
         List<TagHeatSnapshot> snapshots = new ArrayList<>();
         int rank = 1;

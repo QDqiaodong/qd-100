@@ -297,13 +297,18 @@ public class VideoService {
         });
         
         List<VideoTag> videoTags = videoTagRepository.findByVideoId(video.getId());
-        List<String> tagNames = new ArrayList<>();
+        Set<String> tagNames = new LinkedHashSet<>();
         for (VideoTag vt : videoTags) {
             tagRepository.findById(vt.getTagId()).ifPresent(tag -> {
-                tagNames.add(tag.getName());
+                Tag canonicalTag = tagService.getCanonicalTag(tag.getId());
+                if (canonicalTag != null) {
+                    tagNames.add(canonicalTag.getName());
+                } else {
+                    tagNames.add(tag.getName());
+                }
             });
         }
-        dto.setTags(tagNames);
+        dto.setTags(new ArrayList<>(tagNames));
         
         return dto;
     }

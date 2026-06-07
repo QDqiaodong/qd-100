@@ -102,7 +102,7 @@ function removeSynonym(synonymId: string) {
 
 const allTags = computed(() => {
   const tagSet = new Set<string>()
-  videos.value.forEach(v => v.tags.forEach(t => tagSet.add(t)))
+  videos.value.forEach(v => (v.tags ?? []).forEach(t => tagSet.add(t)))
   return Array.from(tagSet)
 })
 
@@ -113,8 +113,8 @@ const filteredVideos = computed(() => {
     const query = searchQuery.value.toLowerCase()
     result = result.filter(v =>
       v.title.toLowerCase().includes(query) ||
-      v.author.username.toLowerCase().includes(query) ||
-      v.description.toLowerCase().includes(query)
+      (v.author?.username ?? '').toLowerCase().includes(query) ||
+      (v.description ?? '').toLowerCase().includes(query)
     )
   }
 
@@ -671,13 +671,13 @@ onUnmounted(() => {
                 <div class="flex items-center gap-4 mt-1 text-sm text-gray-500">
                   <span class="flex items-center gap-1">
                     <Users class="w-4 h-4" />
-                    {{ video.author.username }}
+                    {{ video.author?.username || '未知作者' }}
                   </span>
                   <span>{{ formatDate(video.createdAt) }}</span>
                 </div>
                 <div class="flex flex-wrap gap-1 mt-2">
                   <span
-                    v-for="tag in video.tags.slice(0, 3)"
+                    v-for="tag in (video.tags ?? []).slice(0, 3)"
                     :key="tag"
                     class="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full"
                   >
@@ -915,7 +915,7 @@ onUnmounted(() => {
 
             <div class="flex flex-wrap gap-2 mb-4">
               <span
-                v-for="tag in currentReviewVideo.tags"
+                v-for="tag in (currentReviewVideo.tags ?? [])"
                 :key="tag"
                 class="text-xs px-3 py-1 bg-white/10 text-white/80 rounded-full"
               >
@@ -929,7 +929,7 @@ onUnmounted(() => {
                   <User class="w-4 h-4" />
                 </div>
                 <div class="flex-1">
-                  <div class="text-white font-medium">{{ currentReviewVideo.author.username }}</div>
+                  <div class="text-white font-medium">{{ currentReviewVideo.author?.username || '未知作者' }}</div>
                   <div class="text-white/50 text-xs">作者</div>
                 </div>
               </div>

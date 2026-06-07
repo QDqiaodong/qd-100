@@ -56,7 +56,7 @@ public class VideoHeatSnapshot {
     @Column(name = "share_count", columnDefinition = "INT DEFAULT 0")
     private Integer shareCount;
 
-    @Column(nullable = false)
+    @Column(name = "rank_order", nullable = false)
     private Integer rank;
 
     @Column(name = "created_at", updatable = false)

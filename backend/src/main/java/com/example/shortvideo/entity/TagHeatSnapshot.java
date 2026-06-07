@@ -47,7 +47,7 @@ public class TagHeatSnapshot {
     @Column(name = "comment_count", columnDefinition = "BIGINT DEFAULT 0")
     private Long commentCount;
 
-    @Column(nullable = false)
+    @Column(name = "rank_order", nullable = false)
     private Integer rank;
 
     @Column(name = "created_at", updatable = false)

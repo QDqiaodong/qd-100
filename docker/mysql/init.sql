@@ -170,10 +170,10 @@ CREATE TABLE IF NOT EXISTS tag_heat_snapshots (
     like_count BIGINT DEFAULT 0,
     favorite_count BIGINT DEFAULT 0,
     comment_count BIGINT DEFAULT 0,
-    rank INT NOT NULL,
+    rank_order INT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_snapshot_time (snapshot_time),
-    INDEX idx_snapshot_rank (snapshot_time, rank),
+    INDEX idx_snapshot_rank (snapshot_time, rank_order),
     INDEX idx_tag_id (tag_id)
 );
 
@@ -191,10 +191,10 @@ CREATE TABLE IF NOT EXISTS video_heat_snapshots (
     favorite_count INT DEFAULT 0,
     comment_count INT DEFAULT 0,
     share_count INT DEFAULT 0,
-    rank INT NOT NULL,
+    rank_order INT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_snapshot_time (snapshot_time),
-    INDEX idx_snapshot_rank (snapshot_time, rank),
+    INDEX idx_snapshot_rank (snapshot_time, rank_order),
     INDEX idx_video_id (video_id)
 );
 
@@ -211,9 +211,9 @@ CREATE TABLE IF NOT EXISTS author_heat_snapshots (
     total_like_count BIGINT DEFAULT 0,
     total_favorite_count BIGINT DEFAULT 0,
     followers INT DEFAULT 0,
-    rank INT NOT NULL,
+    rank_order INT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_snapshot_time (snapshot_time),
-    INDEX idx_snapshot_rank (snapshot_time, rank),
+    INDEX idx_snapshot_rank (snapshot_time, rank_order),
     INDEX idx_author_id (author_id)
 );

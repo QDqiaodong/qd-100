@@ -47,6 +47,18 @@ public class Video {
     @Column(name = "view_count", columnDefinition = "INT DEFAULT 0")
     private Integer viewCount;
     
+    @Column(name = "comment_count", columnDefinition = "INT DEFAULT 0")
+    private Integer commentCount;
+    
+    @Column(name = "share_count", columnDefinition = "INT DEFAULT 0")
+    private Integer shareCount;
+    
+    @Column(name = "heat_score", columnDefinition = "DOUBLE DEFAULT 0")
+    private Double heatScore;
+    
+    @Column(name = "last_heat_update")
+    private LocalDateTime lastHeatUpdate;
+    
     @Column(columnDefinition = "VARCHAR(20) DEFAULT 'pending'")
     private String status;
     
@@ -60,10 +72,14 @@ public class Video {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        lastHeatUpdate = LocalDateTime.now();
         if (duration == null) duration = 0;
         if (likeCount == null) likeCount = 0;
         if (favoriteCount == null) favoriteCount = 0;
         if (viewCount == null) viewCount = 0;
+        if (commentCount == null) commentCount = 0;
+        if (shareCount == null) shareCount = 0;
+        if (heatScore == null) heatScore = 0.0;
         if (status == null) status = "pending";
     }
     

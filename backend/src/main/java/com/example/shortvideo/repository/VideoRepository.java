@@ -16,11 +16,7 @@ import java.util.List;
 public interface VideoRepository extends JpaRepository<Video, Long> {
     Page<Video> findByStatus(String status, Pageable pageable);
     
-    @Query(value = "SELECT * FROM videos v WHERE v.status = 'approved' " +
-           "ORDER BY (v.view_count + v.like_count * 5 + v.favorite_count * 3) / " +
-           "POW(TIMESTAMPDIFF(HOUR, v.created_at, NOW()) + 2, 1.8) DESC",
-           countQuery = "SELECT COUNT(*) FROM videos v WHERE v.status = 'approved'",
-           nativeQuery = true)
+    @Query("SELECT v FROM Video v WHERE v.status = 'approved' ORDER BY v.heatScore DESC, v.createdAt DESC")
     Page<Video> findHotVideos(Pageable pageable);
     
     @Query("SELECT v FROM Video v WHERE v.status = 'approved' ORDER BY v.createdAt DESC")
@@ -50,9 +46,6 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("SELECT v FROM Video v WHERE v.userId = :userId AND v.status = 'approved' ORDER BY v.createdAt DESC")
     List<Video> findAllByUserId(@Param("userId") Long userId);
 
-    @Query(value = "SELECT * FROM videos v WHERE v.status = 'approved' " +
-           "ORDER BY (v.view_count + v.like_count * 5 + v.favorite_count * 3) / " +
-           "POW(TIMESTAMPDIFF(HOUR, v.created_at, NOW()) + 2, 1.8) DESC, v.created_at DESC",
-           nativeQuery = true)
+    @Query("SELECT v FROM Video v WHERE v.status = 'approved' ORDER BY v.heatScore DESC, v.createdAt DESC")
     List<Video> findTrendingVideos(Pageable pageable);
 }

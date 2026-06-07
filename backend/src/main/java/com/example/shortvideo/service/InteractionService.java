@@ -24,17 +24,20 @@ public class InteractionService {
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
     private final RedisService redisService;
+    private final HeatService heatService;
     
     public InteractionService(VideoRepository videoRepository,
                             FavoriteRepository favoriteRepository,
                             CommentRepository commentRepository,
                             UserRepository userRepository,
-                            RedisService redisService) {
+                            RedisService redisService,
+                            HeatService heatService) {
         this.videoRepository = videoRepository;
         this.favoriteRepository = favoriteRepository;
         this.commentRepository = commentRepository;
         this.userRepository = userRepository;
         this.redisService = redisService;
+        this.heatService = heatService;
     }
     
     public LikeResponse likeVideo(Long videoId) {
@@ -77,7 +80,7 @@ public class InteractionService {
         }
         
         video.setLikeCount(currentLikeCount);
-        videoRepository.save(video);
+        heatService.updateHeatScore(video);
         
         return LikeResponse.builder()
                 .liked(liked)
@@ -107,7 +110,7 @@ public class InteractionService {
         Video video = videoRepository.findById(videoId).orElse(null);
         if (video != null) {
             video.setFavoriteCount(favoriteCount);
-            videoRepository.save(video);
+            heatService.updateHeatScore(video);
         }
         
         return FavoriteResponse.builder()
@@ -131,6 +134,14 @@ public class InteractionService {
                 .build();
         
         comment = commentRepository.save(comment);
+
+        Video video = videoRepository.findById(videoId).orElse(null);
+        if (video != null) {
+            int commentCount = commentRepository.countByVideoId(videoId);
+            video.setCommentCount(commentCount);
+            heatService.updateHeatScore(video);
+        }
+
         return convertToDTO(comment);
     }
     

@@ -23,6 +23,9 @@ public class VideoDTO {
     private Integer likeCount;
     private Integer favoriteCount;
     private Integer viewCount;
+    private Integer commentCount;
+    private Integer shareCount;
+    private Double heatScore;
     private String status;
     private UserDTO author;
     private String createdAt;
@@ -38,6 +41,9 @@ public class VideoDTO {
                 .likeCount(video.getLikeCount())
                 .favoriteCount(video.getFavoriteCount())
                 .viewCount(video.getViewCount())
+                .commentCount(video.getCommentCount())
+                .shareCount(video.getShareCount())
+                .heatScore(video.getHeatScore())
                 .status(video.getStatus())
                 .createdAt(video.getCreatedAt().toString())
                 .build();

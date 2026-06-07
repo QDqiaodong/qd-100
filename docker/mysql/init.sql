@@ -26,10 +26,16 @@ CREATE TABLE IF NOT EXISTS videos (
     like_count INT DEFAULT 0,
     favorite_count INT DEFAULT 0,
     view_count INT DEFAULT 0,
+    comment_count INT DEFAULT 0,
+    share_count INT DEFAULT 0,
+    heat_score DOUBLE DEFAULT 0,
+    last_heat_update DATETIME DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(20) DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_heat_score (heat_score),
+    INDEX idx_status (status)
 );
 
 CREATE TABLE IF NOT EXISTS tags (

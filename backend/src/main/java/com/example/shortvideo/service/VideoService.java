@@ -40,6 +40,7 @@ public class VideoService {
     private final VideoMilestoneRepository videoMilestoneRepository;
     private final RedisService redisService;
     private final WatchProgressRepository watchProgressRepository;
+    private final HeatService heatService;
     
     public VideoService(VideoRepository videoRepository, 
                        UserRepository userRepository,
@@ -47,7 +48,8 @@ public class VideoService {
                        VideoTagRepository videoTagRepository,
                        VideoMilestoneRepository videoMilestoneRepository,
                        RedisService redisService,
-                       WatchProgressRepository watchProgressRepository) {
+                       WatchProgressRepository watchProgressRepository,
+                       HeatService heatService) {
         this.videoRepository = videoRepository;
         this.userRepository = userRepository;
         this.tagRepository = tagRepository;
@@ -55,6 +57,7 @@ public class VideoService {
         this.videoMilestoneRepository = videoMilestoneRepository;
         this.redisService = redisService;
         this.watchProgressRepository = watchProgressRepository;
+        this.heatService = heatService;
     }
     
     public Page<VideoDTO> getVideos(String sort, Pageable pageable) {
@@ -84,7 +87,8 @@ public class VideoService {
         } else {
             video.setViewCount(video.getViewCount() + 1);
         }
-        videoRepository.save(video);
+        
+        heatService.updateHeatScore(video);
         
         return convertToDTO(video);
     }
@@ -101,6 +105,7 @@ public class VideoService {
                 .build();
         
         video = videoRepository.save(video);
+        heatService.updateHeatScore(video);
         
         for (String tagName : tags) {
             Tag tag = tagRepository.findByName(tagName).orElse(null);
@@ -495,14 +500,11 @@ public class VideoService {
             return trendingVideos;
         }
 
-        List<Long> heatScores = new ArrayList<>();
-        long maxHeatScore = 0;
-
+        double maxHeatScore = 0;
         for (Video video : videos) {
-            long heatScore = calculateHeatScore(video);
-            heatScores.add(heatScore);
-            if (heatScore > maxHeatScore) {
-                maxHeatScore = heatScore;
+            double score = video.getHeatScore() != null ? video.getHeatScore() : 0.0;
+            if (score > maxHeatScore) {
+                maxHeatScore = score;
             }
         }
 
@@ -510,9 +512,10 @@ public class VideoService {
             Video video = videos.get(i);
             VideoDTO videoDTO = convertToDTO(video);
 
+            double heatScore = video.getHeatScore() != null ? video.getHeatScore() : 0.0;
             int growthRate;
             if (maxHeatScore > 0) {
-                growthRate = (int) ((heatScores.get(i) * 100.0) / maxHeatScore);
+                growthRate = (int) ((heatScore * 100.0) / maxHeatScore);
             } else {
                 growthRate = (int) (100.0 / (i + 1));
             }
@@ -531,22 +534,5 @@ public class VideoService {
         }
 
         return trendingVideos;
-    }
-
-    private long calculateHeatScore(Video video) {
-        long viewScore = video.getViewCount() != null ? video.getViewCount().longValue() : 0L;
-        long likeScore = video.getLikeCount() != null ? video.getLikeCount().longValue() * 5L : 0L;
-        long favoriteScore = video.getFavoriteCount() != null ? video.getFavoriteCount().longValue() * 3L : 0L;
-        long baseScore = viewScore + likeScore + favoriteScore;
-
-        LocalDateTime createdAt = video.getCreatedAt();
-        if (createdAt == null) {
-            return baseScore;
-        }
-
-        long hoursSinceCreation = java.time.Duration.between(createdAt, LocalDateTime.now()).toHours();
-        double decayFactor = Math.pow(hoursSinceCreation + 2.0, 1.8);
-
-        return (long) (baseScore / decayFactor);
     }
 }

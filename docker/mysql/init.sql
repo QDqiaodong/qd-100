@@ -158,3 +158,62 @@ INSERT INTO video_milestones (video_id, title, description, timestamp_seconds, s
 (4, '变量与类型', '讲解变量和数据类型', 70, 3),
 (4, '条件语句', 'if-else 语句详解', 95, 4),
 (4, '循环结构', 'for 和 while 循环', 115, 5);
+
+CREATE TABLE IF NOT EXISTS tag_heat_snapshots (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    snapshot_time DATETIME NOT NULL,
+    tag_id BIGINT NOT NULL,
+    tag_name VARCHAR(50) NOT NULL,
+    heat_score DOUBLE DEFAULT 0,
+    video_count INT DEFAULT 0,
+    view_count BIGINT DEFAULT 0,
+    like_count BIGINT DEFAULT 0,
+    favorite_count BIGINT DEFAULT 0,
+    comment_count BIGINT DEFAULT 0,
+    rank INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_snapshot_time (snapshot_time),
+    INDEX idx_snapshot_rank (snapshot_time, rank),
+    INDEX idx_tag_id (tag_id)
+);
+
+CREATE TABLE IF NOT EXISTS video_heat_snapshots (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    snapshot_time DATETIME NOT NULL,
+    video_id BIGINT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    cover_url VARCHAR(500),
+    author_id BIGINT NOT NULL,
+    author_name VARCHAR(50),
+    heat_score DOUBLE DEFAULT 0,
+    view_count INT DEFAULT 0,
+    like_count INT DEFAULT 0,
+    favorite_count INT DEFAULT 0,
+    comment_count INT DEFAULT 0,
+    share_count INT DEFAULT 0,
+    rank INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_snapshot_time (snapshot_time),
+    INDEX idx_snapshot_rank (snapshot_time, rank),
+    INDEX idx_video_id (video_id)
+);
+
+CREATE TABLE IF NOT EXISTS author_heat_snapshots (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    snapshot_time DATETIME NOT NULL,
+    author_id BIGINT NOT NULL,
+    author_name VARCHAR(50) NOT NULL,
+    avatar VARCHAR(500),
+    bio VARCHAR(500),
+    heat_score DOUBLE DEFAULT 0,
+    video_count INT DEFAULT 0,
+    total_view_count BIGINT DEFAULT 0,
+    total_like_count BIGINT DEFAULT 0,
+    total_favorite_count BIGINT DEFAULT 0,
+    followers INT DEFAULT 0,
+    rank INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_snapshot_time (snapshot_time),
+    INDEX idx_snapshot_rank (snapshot_time, rank),
+    INDEX idx_author_id (author_id)
+);

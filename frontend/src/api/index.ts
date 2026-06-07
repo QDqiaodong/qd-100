@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone, MorningReport } from '@/types'
+import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone, MorningReport, VideoDraft } from '@/types'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -42,6 +42,109 @@ export const videoApi = {
 
   deleteVideo(id: string) {
     return api.delete<ApiResponse<void>>(`/videos/${id}`)
+  },
+
+  getDrafts(params: { page?: number; size?: number; userId?: number }) {
+    return api.get<ApiResponse<PageResponse<VideoDraft>>>('/videos/drafts', { params })
+  },
+
+  getDraft(id: string, userId?: number) {
+    return api.get<ApiResponse<VideoDraft>>(`/videos/drafts/${id}`, {
+      params: { userId }
+    })
+  },
+
+  getDraftCount(userId?: number) {
+    return api.get<ApiResponse<number>>('/videos/drafts/count', {
+      params: { userId }
+    })
+  },
+
+  createDraft(data: {
+    title?: string
+    description?: string
+    tags?: string[]
+    duration?: number
+    userId?: number
+  }) {
+    const formData = new FormData()
+    if (data.title) formData.append('title', data.title)
+    if (data.description) formData.append('description', data.description)
+    if (data.tags) {
+      data.tags.forEach((tag, index) => {
+        formData.append(`tags[${index}]`, tag)
+      })
+    }
+    if (data.duration) formData.append('duration', data.duration.toString())
+    if (data.userId) formData.append('userId', data.userId.toString())
+    return api.post<ApiResponse<VideoDraft>>('/videos/drafts', formData)
+  },
+
+  updateDraft(id: string, data: {
+    title?: string
+    description?: string
+    tags?: string[]
+    duration?: number
+    userId?: number
+  }) {
+    const formData = new FormData()
+    if (data.title) formData.append('title', data.title)
+    if (data.description) formData.append('description', data.description)
+    if (data.tags) {
+      data.tags.forEach((tag, index) => {
+        formData.append(`tags[${index}]`, tag)
+      })
+    }
+    if (data.duration) formData.append('duration', data.duration.toString())
+    if (data.userId) formData.append('userId', data.userId.toString())
+    return api.put<ApiResponse<VideoDraft>>(`/videos/drafts/${id}`, formData)
+  },
+
+  uploadDraftVideo(draftId: string, file: File, userId?: number) {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (userId) formData.append('userId', userId.toString())
+    return api.post<ApiResponse<VideoDraft>>(`/videos/drafts/${draftId}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  saveDraft(data: {
+    draftId?: string
+    title?: string
+    description?: string
+    tags?: string[]
+    duration?: number
+    file?: File
+    userId?: number
+  }) {
+    const formData = new FormData()
+    if (data.draftId) formData.append('draftId', data.draftId)
+    if (data.title) formData.append('title', data.title)
+    if (data.description) formData.append('description', data.description)
+    if (data.tags) {
+      data.tags.forEach((tag, index) => {
+        formData.append(`tags[${index}]`, tag)
+      })
+    }
+    if (data.duration) formData.append('duration', data.duration.toString())
+    if (data.file) formData.append('file', data.file)
+    if (data.userId) formData.append('userId', data.userId.toString())
+    return api.post<ApiResponse<VideoDraft>>('/videos/drafts/save', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  deleteDraft(id: string, userId?: number) {
+    return api.delete<ApiResponse<void>>(`/videos/drafts/${id}`, {
+      params: { userId }
+    })
+  },
+
+  publishDraft(id: string, userId?: number) {
+    return api.post<ApiResponse<{ id: string; status: string }>>(`/videos/drafts/${id}/publish`, null, {
+      params: { userId }
+    })
   },
 
   likeVideo(id: string) {

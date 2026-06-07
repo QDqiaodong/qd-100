@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Search, Plus, User, Home, LayoutGrid } from 'lucide-vue-next'
+import { Search, Plus, User, Home, LayoutGrid, FileText, Play } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -55,6 +55,14 @@ function goTo(path: string) {
           title="发布"
         >
           <Plus class="w-6 h-6 text-gray-600" />
+        </button>
+        
+        <button 
+          class="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          @click="goTo('/drafts')"
+          title="草稿箱"
+        >
+          <FileText class="w-6 h-6 text-gray-600" />
         </button>
         
         <button 

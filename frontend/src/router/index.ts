@@ -4,6 +4,7 @@ import VideoPlayer from '@/views/VideoPlayer.vue'
 import Upload from '@/views/Upload.vue'
 import Profile from '@/views/Profile.vue'
 import Admin from '@/views/Admin.vue'
+import Drafts from '@/views/Drafts.vue'
 
 const routes = [
   {
@@ -20,6 +21,11 @@ const routes = [
     path: '/upload',
     name: 'Upload',
     component: Upload
+  },
+  {
+    path: '/drafts',
+    name: 'Drafts',
+    component: Drafts
   },
   {
     path: '/profile',

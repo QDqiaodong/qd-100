@@ -154,3 +154,18 @@ export interface PublishCheckResult {
   errorItems: number
   checks: PublishCheckItem[]
 }
+
+export interface VideoDraft {
+  id: string
+  title: string
+  description: string
+  tags: string[]
+  coverUrl: string
+  videoUrl: string
+  videoFileName: string
+  duration: number
+  fileStatus: 'not_uploaded' | 'uploaded'
+  status: 'draft' | 'published' | 'deleted'
+  createdAt: string
+  updatedAt: string
+}

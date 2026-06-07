@@ -93,6 +93,24 @@ CREATE TABLE IF NOT EXISTS video_milestones (
     INDEX idx_video_id (video_id)
 );
 
+CREATE TABLE IF NOT EXISTS video_drafts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    title VARCHAR(200),
+    description TEXT,
+    cover_url VARCHAR(500),
+    video_url VARCHAR(500),
+    video_file_name VARCHAR(200),
+    duration INT DEFAULT 0,
+    tags_text TEXT,
+    file_status VARCHAR(20) DEFAULT 'not_uploaded',
+    status VARCHAR(20) DEFAULT 'draft',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_user_id_status (user_id, status)
+);
+
 INSERT INTO users (username, email, password, bio, followers, following) VALUES 
 ('testuser', 'test@example.com', 'password', '这是一个测试用户', 100, 50);
 

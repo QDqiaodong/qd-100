@@ -4,10 +4,12 @@ import com.example.shortvideo.dto.response.ApiResponse;
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.MorningReportDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
+import com.example.shortvideo.dto.response.VideoDraftDTO;
 import com.example.shortvideo.dto.response.VideoMilestoneDTO;
 import com.example.shortvideo.dto.response.WatchProgressDTO;
 import com.example.shortvideo.entity.Video;
 import com.example.shortvideo.service.MinIOService;
+import com.example.shortvideo.service.VideoDraftService;
 import com.example.shortvideo.service.VideoService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,10 +28,13 @@ public class VideoController {
     
     private final VideoService videoService;
     private final MinIOService minIOService;
-    
-    public VideoController(VideoService videoService, MinIOService minIOService) {
+    private final VideoDraftService videoDraftService;
+
+    public VideoController(VideoService videoService, MinIOService minIOService,
+                           VideoDraftService videoDraftService) {
         this.videoService = videoService;
         this.minIOService = minIOService;
+        this.videoDraftService = videoDraftService;
     }
     
     @GetMapping
@@ -211,4 +216,135 @@ public class VideoController {
             String description,
             Integer timestampSeconds,
             Integer sortOrder) {}
+
+    @GetMapping("/drafts")
+    public ApiResponse<Page<VideoDraftDTO>> getDrafts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "1") Long userId) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<VideoDraftDTO> drafts = videoDraftService.getDraftList(userId, pageable);
+        return ApiResponse.success(drafts);
+    }
+
+    @GetMapping("/drafts/{id}")
+    public ApiResponse<VideoDraftDTO> getDraft(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Long userId) {
+
+        VideoDraftDTO draft = videoDraftService.getDraft(id, userId);
+        if (draft == null) {
+            return ApiResponse.error(404, "草稿不存在");
+        }
+        return ApiResponse.success(draft);
+    }
+
+    @GetMapping("/drafts/count")
+    public ApiResponse<Long> getDraftCount(
+            @RequestParam(defaultValue = "1") Long userId) {
+
+        long count = videoDraftService.getDraftCount(userId);
+        return ApiResponse.success(count);
+    }
+
+    @PostMapping("/drafts")
+    public ApiResponse<VideoDraftDTO> createDraft(
+            @RequestParam(defaultValue = "1") Long userId,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String description,
+            @RequestParam(required = false) String[] tags,
+            @RequestParam(required = false) Integer duration) {
+
+        List<String> tagList = tags != null ? Arrays.asList(tags) : List.of();
+        VideoDraftDTO draft = videoDraftService.createDraft(userId, title, description, tagList, duration);
+        return ApiResponse.success(draft);
+    }
+
+    @PutMapping("/drafts/{id}")
+    public ApiResponse<VideoDraftDTO> updateDraft(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Long userId,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String description,
+            @RequestParam(required = false) String[] tags,
+            @RequestParam(required = false) Integer duration) {
+
+        List<String> tagList = tags != null ? Arrays.asList(tags) : null;
+        VideoDraftDTO draft = videoDraftService.updateDraft(id, userId, title, description, tagList, duration);
+        if (draft == null) {
+            return ApiResponse.error(404, "草稿不存在");
+        }
+        return ApiResponse.success(draft);
+    }
+
+    @PostMapping("/drafts/{id}/upload")
+    public ApiResponse<VideoDraftDTO> uploadDraftVideo(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(defaultValue = "1") Long userId) {
+
+        try {
+            VideoDraftDTO draft = videoDraftService.uploadDraftVideo(id, userId, file);
+            if (draft == null) {
+                return ApiResponse.error(404, "草稿不存在");
+            }
+            return ApiResponse.success("上传成功", draft);
+        } catch (Exception e) {
+            return ApiResponse.error("上传失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/drafts/save")
+    public ApiResponse<VideoDraftDTO> saveDraft(
+            @RequestParam(required = false) Long draftId,
+            @RequestParam(defaultValue = "1") Long userId,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String description,
+            @RequestParam(required = false) String[] tags,
+            @RequestParam(required = false) Integer duration,
+            @RequestParam(value = "file", required = false) MultipartFile file) {
+
+        try {
+            List<String> tagList = tags != null ? Arrays.asList(tags) : null;
+            VideoDraftDTO draft = videoDraftService.saveOrUpdateDraft(
+                    draftId, userId, title, description, tagList, duration, file);
+            if (draft == null) {
+                return ApiResponse.error(404, "草稿不存在");
+            }
+            return ApiResponse.success("保存成功", draft);
+        } catch (Exception e) {
+            return ApiResponse.error("保存失败: " + e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/drafts/{id}")
+    public ApiResponse<Void> deleteDraft(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Long userId) {
+
+        boolean deleted = videoDraftService.deleteDraft(id, userId);
+        if (!deleted) {
+            return ApiResponse.error(404, "草稿不存在");
+        }
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/drafts/{id}/publish")
+    public ApiResponse<UploadResult> publishDraft(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Long userId) {
+
+        try {
+            Video video = videoDraftService.publishDraft(id, userId);
+            if (video == null) {
+                return ApiResponse.error(404, "草稿不存在");
+            }
+            return ApiResponse.success("发布成功", new UploadResult(video.getId(), video.getStatus()));
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("发布失败: " + e.getMessage());
+        }
+    }
 }

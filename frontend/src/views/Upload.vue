@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Upload as UploadIcon, X, Image, Tag, Type, CheckCircle, ClipboardCheck } from 'lucide-vue-next'
+import { ref, computed, onMounted } from 'vue'
+import { Upload as UploadIcon, X, Image, Tag, Type, CheckCircle, ClipboardCheck, Save, FileText } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
 import Navbar from '@/components/Navbar.vue'
 import PublishCheckup from '@/components/PublishCheckup.vue'
 import { videoApi } from '@/api'
-import type { PublishCheckResult, PublishCheckItem, CheckItemSeverity } from '@/types'
+import type { PublishCheckResult, PublishCheckItem, CheckItemSeverity, VideoDraft } from '@/types'
+
+const route = useRoute()
+const router = useRouter()
 
 const file = ref<File | null>(null)
 const previewUrl = ref('')
@@ -18,6 +22,11 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const videoDuration = ref(0)
 const showCheckup = ref(false)
 const checkResult = ref<PublishCheckResult | null>(null)
+
+const draftId = ref<string | null>(null)
+const isSaving = ref(false)
+const saveSuccess = ref(false)
+const isLoadingDraft = ref(false)
 
 function handleFileChange(e: Event) {
   const target = e.target as HTMLInputElement
@@ -306,20 +315,159 @@ function handleSubmit() {
     showCheckup.value = false
     
     setTimeout(() => {
-      title.value = ''
-      description.value = ''
-      tags.value = ''
-      file.value = null
-      previewUrl.value = ''
-      uploadProgress.value = 0
-      uploadSuccess.value = false
-      videoDuration.value = 0
-      checkResult.value = null
+      resetForm()
     }, 2000)
   }).catch(() => {
     isUploading.value = false
   })
 }
+
+function handleSaveDraft() {
+  if (!title.value.trim() && !file.value && !description.value.trim() && !tags.value.trim()) {
+    return
+  }
+
+  isSaving.value = true
+  saveSuccess.value = false
+
+  videoApi.saveDraft({
+    draftId: draftId.value || undefined,
+    title: title.value,
+    description: description.value,
+    tags: tagList.value,
+    duration: videoDuration.value,
+    file: file.value || undefined
+  }).then((response) => {
+    if (response.data.code === 0 && response.data.data) {
+      draftId.value = response.data.data.id
+      saveSuccess.value = true
+      setTimeout(() => {
+        saveSuccess.value = false
+      }, 2000)
+    }
+  }).catch(() => {
+    console.error('保存草稿失败')
+  }).finally(() => {
+    isSaving.value = false
+  })
+}
+
+function loadDraft(id: string) {
+  isLoadingDraft.value = true
+  videoApi.getDraft(id).then((response) => {
+    if (response.data.code === 0 && response.data.data) {
+      const draft: VideoDraft = response.data.data
+      draftId.value = draft.id
+      title.value = draft.title || ''
+      description.value = draft.description || ''
+      tags.value = draft.tags?.join(',') || ''
+      videoDuration.value = draft.duration || 0
+      
+      if (draft.videoUrl) {
+        previewUrl.value = draft.videoUrl
+      }
+    }
+  }).catch(() => {
+    console.error('加载草稿失败')
+  }).finally(() => {
+    isLoadingDraft.value = false
+  })
+}
+
+function resetForm() {
+  title.value = ''
+  description.value = ''
+  tags.value = ''
+  file.value = null
+  previewUrl.value = ''
+  uploadProgress.value = 0
+  uploadSuccess.value = false
+  videoDuration.value = 0
+  checkResult.value = null
+  draftId.value = null
+  saveSuccess.value = false
+}
+
+function handlePublishFromDraft() {
+  if (!title.value.trim()) {
+    return
+  }
+
+  isUploading.value = true
+  uploadProgress.value = 0
+
+  const doPublish = (id: string) => {
+    videoApi.publishDraft(id).then((response) => {
+      if (response.data.code === 0) {
+        isUploading.value = false
+        uploadProgress.value = 100
+        uploadSuccess.value = true
+        showCheckup.value = false
+
+        setTimeout(() => {
+          resetForm()
+          router.push('/')
+        }, 2000)
+      }
+    }).catch(() => {
+      isUploading.value = false
+    })
+  }
+
+  if (draftId.value) {
+    videoApi.saveDraft({
+      draftId: draftId.value,
+      title: title.value,
+      description: description.value,
+      tags: tagList.value,
+      duration: videoDuration.value,
+      file: file.value || undefined
+    }).then((response) => {
+      if (response.data.code === 0 && response.data.data) {
+        doPublish(response.data.data.id)
+      } else {
+        isUploading.value = false
+      }
+    }).catch(() => {
+      isUploading.value = false
+    })
+  } else {
+    if (!file.value) {
+      isUploading.value = false
+      return
+    }
+    
+    const formData = new FormData()
+    formData.append('file', file.value)
+    formData.append('title', title.value)
+    formData.append('description', description.value)
+    
+    tagList.value.forEach((tag, index) => {
+      formData.append(`tags[${index}]`, tag)
+    })
+    
+    videoApi.uploadVideo(formData).then(() => {
+      isUploading.value = false
+      uploadProgress.value = 100
+      uploadSuccess.value = true
+      showCheckup.value = false
+      
+      setTimeout(() => {
+        resetForm()
+        router.push('/')
+      }, 2000)
+    }).catch(() => {
+      isUploading.value = false
+    })
+  }
+}
+
+onMounted(() => {
+  const draftParam = route.query.draft as string
+  if (draftParam) {
+    loadDraft(draftParam)
+  }
+})
 
 const commonTags = ['美食', '旅行', '健身', '学习', '音乐', '游戏', '宠物', '日常']
 
@@ -350,7 +498,7 @@ const canCheckup = computed(() => {
             :video-preview="previewUrl"
             :title="title"
             @back="handleBackToEdit"
-            @publish="handleSubmit"
+            @publish="handlePublishFromDraft"
           />
         </div>
 
@@ -480,7 +628,31 @@ const canCheckup = computed(() => {
               </div>
             </div>
             
+            <div 
+              v-if="saveSuccess" 
+              class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2"
+            >
+              <CheckCircle class="w-5 h-5 text-blue-500" />
+              <p class="text-sm text-blue-700">草稿已保存</p>
+            </div>
+
+            <div 
+              v-if="isLoadingDraft" 
+              class="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center gap-2"
+            >
+              <div class="w-5 h-5 border-2 border-gray-300 border-t-primary rounded-full animate-spin" />
+              <p class="text-sm text-gray-600">正在加载草稿...</p>
+            </div>
+
             <div class="flex gap-3">
+              <button
+                class="flex-1 py-3 border-2 border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                :disabled="isSaving || (!title.trim() && !file && !description.trim() && !tags.trim())"
+                @click="handleSaveDraft"
+              >
+                <Save class="w-5 h-5" />
+                {{ isSaving ? '保存中...' : '保存草稿' }}
+              </button>
               <button
                 class="flex-1 py-3 bg-gradient-to-r from-primary to-orange-400 text-white font-medium rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 :disabled="!canCheckup || isUploading"

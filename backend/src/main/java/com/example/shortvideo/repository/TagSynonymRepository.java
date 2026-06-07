@@ -1,5 +1,6 @@
 package com.example.shortvideo.repository;
 
+import com.example.shortvideo.entity.Tag;
 import com.example.shortvideo.entity.TagSynonym;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

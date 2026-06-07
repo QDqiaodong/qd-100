@@ -63,17 +63,25 @@ public class VideoService {
         this.tagService = tagService;
     }
     
-    public Page<VideoDTO> getVideos(String sort, Pageable pageable) {
+    public Page<VideoDTO> getVideos(String sort, String tag, Pageable pageable) {
         Page<Video> videoPage;
-        
+
+        List<Long> searchTagIds = new ArrayList<>(tagService.getSearchTagIds(tag));
+
         if ("hot".equals(sort)) {
-            videoPage = videoRepository.findHotVideos(pageable);
+            videoPage = searchTagIds.isEmpty()
+                    ? videoRepository.findHotVideos(pageable)
+                    : videoRepository.findHotVideosByTagIds(searchTagIds, pageable);
         } else if ("new".equals(sort)) {
-            videoPage = videoRepository.findLatestVideos(pageable);
+            videoPage = searchTagIds.isEmpty()
+                    ? videoRepository.findLatestVideos(pageable)
+                    : videoRepository.findLatestVideosByTagIds(searchTagIds, pageable);
         } else {
-            videoPage = videoRepository.findLatestVideos(pageable);
+            videoPage = searchTagIds.isEmpty()
+                    ? videoRepository.findLatestVideos(pageable)
+                    : videoRepository.findLatestVideosByTagIds(searchTagIds, pageable);
         }
-        
+
         return videoPage.map(this::convertToDTO);
     }
     
@@ -444,6 +452,10 @@ public class VideoService {
                 .trendingVideos(trendingVideos)
                 .reportDate(today.toString())
                 .build();
+    }
+
+    public List<MorningReportDTO.HotTagDTO> getHotTagsSummary() {
+        return getHotTags();
     }
 
     private List<MorningReportDTO.HotTagDTO> getHotTags() {

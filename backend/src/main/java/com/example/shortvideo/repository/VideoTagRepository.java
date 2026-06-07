@@ -10,5 +10,6 @@ import java.util.List;
 public interface VideoTagRepository extends JpaRepository<VideoTag, Long> {
     List<VideoTag> findByVideoId(Long videoId);
     List<VideoTag> findByTagId(Long tagId);
+    boolean existsByVideoIdAndTagId(Long videoId, Long tagId);
     void deleteByVideoId(Long videoId);
 }

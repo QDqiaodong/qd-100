@@ -5,6 +5,9 @@ import com.example.shortvideo.entity.Tag;
 import com.example.shortvideo.entity.TagSynonym;
 import com.example.shortvideo.repository.TagRepository;
 import com.example.shortvideo.repository.TagSynonymRepository;
+import com.example.shortvideo.repository.VideoTagRepository;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,13 +16,40 @@ import java.util.stream.Collectors;
 
 @Service
 public class TagService {
-    
+    private static final Map<String, List<String>> BUILTIN_SYNONYM_GROUPS = createBuiltinSynonymGroups();
+    private static final Map<String, String> BUILTIN_CANONICAL_BY_ALIAS = createBuiltinCanonicalByAlias();
+    private static final Map<String, String> LEGACY_BROKEN_NAMES = createLegacyBrokenNames();
+
     private final TagRepository tagRepository;
     private final TagSynonymRepository tagSynonymRepository;
+    private final VideoTagRepository videoTagRepository;
     
-    public TagService(TagRepository tagRepository, TagSynonymRepository tagSynonymRepository) {
+    public TagService(TagRepository tagRepository,
+                      TagSynonymRepository tagSynonymRepository,
+                      VideoTagRepository videoTagRepository) {
         this.tagRepository = tagRepository;
         this.tagSynonymRepository = tagSynonymRepository;
+        this.videoTagRepository = videoTagRepository;
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void repairTagCatalog() {
+        repairLegacyBrokenNames();
+
+        for (Map.Entry<String, List<String>> entry : BUILTIN_SYNONYM_GROUPS.entrySet()) {
+            Tag canonicalTag = getOrCreateCanonicalTag(entry.getKey());
+            if (!canonicalTag.isCanonicalTag()) {
+                canonicalTag.setIsCanonical(true);
+                canonicalTag = tagRepository.save(canonicalTag);
+            }
+
+            for (String synonymName : entry.getValue()) {
+                if (!canonicalTag.getName().equals(synonymName)) {
+                    ensureSynonymLink(canonicalTag, synonymName);
+                }
+            }
+        }
     }
     
     public Tag getOrCreateTag(String tagName) {
@@ -33,15 +63,28 @@ public class TagService {
     }
     
     public Tag getCanonicalTag(String tagName) {
-        Tag tag = tagRepository.findByName(tagName).orElse(null);
-        if (tag == null) {
+        String normalizedName = normalizeTagName(tagName);
+        if (normalizedName == null) {
             return null;
         }
-        
+
+        Tag tag = tagRepository.findByName(normalizedName).orElse(null);
+        if (tag == null) {
+            String builtinCanonicalName = resolveBuiltinCanonicalName(normalizedName);
+            if (builtinCanonicalName == null) {
+                return null;
+            }
+            return tagRepository.findByName(builtinCanonicalName).orElse(null);
+        }
+
         if (tag.isCanonicalTag()) {
+            String builtinCanonicalName = resolveBuiltinCanonicalName(normalizedName);
+            if (builtinCanonicalName != null && !builtinCanonicalName.equals(normalizedName)) {
+                return tagRepository.findByName(builtinCanonicalName).orElse(tag);
+            }
             return tag;
         }
-        
+
         return tagSynonymRepository.findCanonicalTagBySynonymTagId(tag.getId()).orElse(tag);
     }
     
@@ -80,19 +123,42 @@ public class TagService {
         if (tagNames == null || tagNames.isEmpty()) {
             return new ArrayList<>();
         }
-        
+
         Map<String, Tag> tagMap = new LinkedHashMap<>();
         for (String tagName : tagNames) {
-            Tag canonicalTag = getCanonicalTag(tagName);
+            Tag canonicalTag = resolveCanonicalTagForWrite(tagName);
             if (canonicalTag != null) {
                 tagMap.put(canonicalTag.getName(), canonicalTag);
-            } else {
-                Tag newTag = getOrCreateTag(tagName);
-                tagMap.put(newTag.getName(), newTag);
             }
         }
-        
+
         return new ArrayList<>(tagMap.values());
+    }
+
+    public Set<Long> getSearchTagIds(String tagName) {
+        String normalizedName = normalizeTagName(tagName);
+        if (normalizedName == null) {
+            return Collections.emptySet();
+        }
+
+        Tag canonicalTag = getCanonicalTag(normalizedName);
+        if (canonicalTag == null) {
+            return Collections.emptySet();
+        }
+
+        LinkedHashSet<Long> tagIds = new LinkedHashSet<>();
+        tagIds.add(canonicalTag.getId());
+
+        Tag directTag = tagRepository.findByName(normalizedName).orElse(null);
+        if (directTag != null) {
+            tagIds.add(directTag.getId());
+        }
+
+        for (TagSynonym synonym : tagSynonymRepository.findByCanonicalTagId(canonicalTag.getId())) {
+            tagIds.add(synonym.getSynonymTagId());
+        }
+
+        return tagIds;
     }
     
     @Transactional
@@ -246,5 +312,157 @@ public class TagService {
         addSynonym(targetTagId, sourceTagId);
         
         return true;
+    }
+
+    private Tag resolveCanonicalTagForWrite(String tagName) {
+        String normalizedName = normalizeTagName(tagName);
+        if (normalizedName == null) {
+            return null;
+        }
+
+        String builtinCanonicalName = resolveBuiltinCanonicalName(normalizedName);
+        if (builtinCanonicalName == null || builtinCanonicalName.equals(normalizedName)) {
+            Tag existingTag = tagRepository.findByName(normalizedName).orElse(null);
+            if (existingTag == null) {
+                return getOrCreateCanonicalTag(normalizedName);
+            }
+            if (existingTag.isCanonicalTag()) {
+                return existingTag;
+            }
+            return tagSynonymRepository.findCanonicalTagBySynonymTagId(existingTag.getId()).orElse(existingTag);
+        }
+
+        Tag canonicalTag = getOrCreateCanonicalTag(builtinCanonicalName);
+        ensureSynonymLink(canonicalTag, normalizedName);
+        return canonicalTag;
+    }
+
+    private Tag getOrCreateCanonicalTag(String canonicalName) {
+        return tagRepository.findByName(canonicalName).map(existing -> {
+            if (!existing.isCanonicalTag()) {
+                existing.setIsCanonical(true);
+                return tagRepository.save(existing);
+            }
+            return existing;
+        }).orElseGet(() -> tagRepository.save(Tag.builder()
+                .name(canonicalName)
+                .isCanonical(true)
+                .build()));
+    }
+
+    private void ensureSynonymLink(Tag canonicalTag, String synonymName) {
+        Tag synonymTag = tagRepository.findByName(synonymName).orElseGet(() -> tagRepository.save(Tag.builder()
+                .name(synonymName)
+                .isCanonical(false)
+                .build()));
+
+        if (Objects.equals(canonicalTag.getId(), synonymTag.getId())) {
+            return;
+        }
+
+        if (synonymTag.isCanonicalTag()) {
+            synonymTag.setIsCanonical(false);
+            tagRepository.save(synonymTag);
+        }
+
+        TagSynonym existing = tagSynonymRepository.findBySynonymTagId(synonymTag.getId()).orElse(null);
+        if (existing == null) {
+            tagSynonymRepository.save(TagSynonym.builder()
+                    .canonicalTagId(canonicalTag.getId())
+                    .synonymTagId(synonymTag.getId())
+                    .build());
+            return;
+        }
+
+        if (!Objects.equals(existing.getCanonicalTagId(), canonicalTag.getId())) {
+            existing.setCanonicalTagId(canonicalTag.getId());
+            tagSynonymRepository.save(existing);
+        }
+    }
+
+    private void repairLegacyBrokenNames() {
+        for (Map.Entry<String, String> entry : LEGACY_BROKEN_NAMES.entrySet()) {
+            Tag brokenTag = tagRepository.findByName(entry.getKey()).orElse(null);
+            if (brokenTag == null) {
+                continue;
+            }
+
+            Tag correctTag = tagRepository.findByName(entry.getValue()).orElse(null);
+            if (correctTag == null) {
+                brokenTag.setName(entry.getValue());
+                brokenTag.setIsCanonical(true);
+                tagRepository.save(brokenTag);
+                continue;
+            }
+
+            if (!Objects.equals(brokenTag.getId(), correctTag.getId())) {
+                migrateTagReferences(brokenTag, correctTag);
+            }
+        }
+    }
+
+    private void migrateTagReferences(Tag sourceTag, Tag targetTag) {
+        for (var videoTag : videoTagRepository.findByTagId(sourceTag.getId())) {
+            if (videoTagRepository.existsByVideoIdAndTagId(videoTag.getVideoId(), targetTag.getId())) {
+                videoTagRepository.delete(videoTag);
+                continue;
+            }
+            videoTag.setTagId(targetTag.getId());
+            videoTagRepository.save(videoTag);
+        }
+
+        for (TagSynonym synonym : tagSynonymRepository.findByCanonicalTagId(sourceTag.getId())) {
+            if (Objects.equals(synonym.getSynonymTagId(), targetTag.getId())) {
+                tagSynonymRepository.delete(synonym);
+                continue;
+            }
+            synonym.setCanonicalTagId(targetTag.getId());
+            tagSynonymRepository.save(synonym);
+        }
+
+        tagSynonymRepository.findBySynonymTagId(sourceTag.getId()).ifPresent(tagSynonymRepository::delete);
+        tagRepository.delete(sourceTag);
+    }
+
+    private String normalizeTagName(String tagName) {
+        if (tagName == null) {
+            return null;
+        }
+        String normalizedName = tagName.trim();
+        return normalizedName.isEmpty() ? null : normalizedName;
+    }
+
+    private String resolveBuiltinCanonicalName(String tagName) {
+        return BUILTIN_CANONICAL_BY_ALIAS.get(normalizeTagName(tagName));
+    }
+
+    private static Map<String, List<String>> createBuiltinSynonymGroups() {
+        Map<String, List<String>> groups = new LinkedHashMap<>();
+        groups.put("美食", List.of("美食", "美食打卡"));
+        groups.put("旅行", List.of("旅行", "旅行日记", "旅游", "风景"));
+        groups.put("健身", List.of("健身", "健身打卡", "跑步", "夜跑", "跑步打卡", "晨跑", "瑜伽", "减脂餐", "健身餐"));
+        groups.put("学习", List.of("学习", "读书", "编程", "知识分享", "学习打卡"));
+        groups.put("音乐", List.of("音乐", "翻唱", "原创音乐", "唱歌"));
+        return groups;
+    }
+
+    private static Map<String, String> createBuiltinCanonicalByAlias() {
+        Map<String, String> aliasToCanonical = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : BUILTIN_SYNONYM_GROUPS.entrySet()) {
+            for (String alias : entry.getValue()) {
+                aliasToCanonical.put(alias, entry.getKey());
+            }
+        }
+        return aliasToCanonical;
+    }
+
+    private static Map<String, String> createLegacyBrokenNames() {
+        Map<String, String> brokenNames = new LinkedHashMap<>();
+        brokenNames.put("ç¾Žé£Ÿ", "美食");
+        brokenNames.put("æ—…è¡Œ", "旅行");
+        brokenNames.put("å¥èº«", "健身");
+        brokenNames.put("å­¦ä¹ ", "学习");
+        brokenNames.put("éŸ³ä¹", "音乐");
+        return brokenNames;
     }
 }

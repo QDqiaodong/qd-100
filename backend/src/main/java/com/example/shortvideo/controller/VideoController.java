@@ -45,8 +45,13 @@ public class VideoController {
             @RequestParam(defaultValue = "hot") String sort) {
         
         Pageable pageable = PageRequest.of(page, size);
-        Page<VideoDTO> videos = videoService.getVideos(sort, pageable);
+        Page<VideoDTO> videos = videoService.getVideos(sort, tag, pageable);
         return ApiResponse.success(videos);
+    }
+
+    @GetMapping("/hot-tags")
+    public ApiResponse<List<MorningReportDTO.HotTagDTO>> getHotTags() {
+        return ApiResponse.success(videoService.getHotTagsSummary());
     }
 
     @GetMapping("/morning-report")
@@ -55,7 +60,7 @@ public class VideoController {
         return ApiResponse.success(report);
     }
     
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public ApiResponse<VideoDTO> getVideo(@PathVariable Long id) {
         VideoDTO video = videoService.getVideoById(id);
         if (video == null) {

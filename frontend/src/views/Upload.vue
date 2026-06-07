@@ -31,7 +31,6 @@ const isLoadingDraft = ref(false)
 const coverFile = ref<File | null>(null)
 const coverUrl = ref('')
 const coverInputRef = ref<HTMLInputElement | null>(null)
-const isUploadingCover = ref(false)
 
 function handleFileChange(e: Event) {
   const target = e.target as HTMLInputElement

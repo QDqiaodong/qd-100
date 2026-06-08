@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone, MorningReport, VideoDraft, Tag, TagWithSynonyms } from '@/types'
+import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone, MorningReport, VideoDraft, Tag, TagWithSynonyms, VideoAppeal } from '@/types'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -216,6 +216,18 @@ export const videoApi = {
 
   deleteVideoMilestone(milestoneId: string) {
     return api.delete<ApiResponse<void>>(`/videos/milestones/${milestoneId}`)
+  },
+
+  submitAppeal(videoId: string, data: {
+    userId: number
+    appealType: string
+    content: string
+  }) {
+    return api.post<ApiResponse<VideoAppeal>>(`/videos/${videoId}/appeals`, data)
+  },
+
+  getVideoAppeals(videoId: string, params?: { page?: number; size?: number }) {
+    return api.get<ApiResponse<PageResponse<VideoAppeal>>>(`/videos/${videoId}/appeals`, { params })
   }
 }
 
@@ -248,6 +260,25 @@ export const adminApi = {
 
   updateVideoStatus(id: string, status: 'approved' | 'rejected') {
     return api.put<ApiResponse<void>>(`/admin/videos/${id}/status`, { status })
+  },
+
+  getAppeals(params: { page?: number; size?: number; status?: string }) {
+    return api.get<ApiResponse<PageResponse<VideoAppeal>>>('/admin/appeals', { params })
+  },
+
+  getPendingAppealCount() {
+    return api.get<ApiResponse<number>>('/admin/appeals/stats')
+  },
+
+  getAppealDetail(id: string) {
+    return api.get<ApiResponse<VideoAppeal>>(`/admin/appeals/${id}`)
+  },
+
+  reviewAppeal(id: string, data: {
+    reviewResult: 'upheld' | 'rejected'
+    reviewComment: string
+  }) {
+    return api.put<ApiResponse<VideoAppeal>>(`/admin/appeals/${id}/review`, data)
   }
 }
 

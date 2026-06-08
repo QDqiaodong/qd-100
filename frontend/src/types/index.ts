@@ -188,3 +188,19 @@ export interface TagWithSynonyms {
   isCanonical: boolean
   synonyms: SynonymTag[]
 }
+
+export interface VideoAppeal {
+  id: string
+  videoId: string
+  userId: string
+  appealType: string
+  content: string
+  status: 'pending' | 'reviewed'
+  reviewerId?: string
+  reviewComment?: string
+  reviewResult?: 'upheld' | 'rejected'
+  video?: Video
+  user?: User
+  createdAt: string
+  updatedAt: string
+}

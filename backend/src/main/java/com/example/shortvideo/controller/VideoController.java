@@ -3,12 +3,14 @@ package com.example.shortvideo.controller;
 import com.example.shortvideo.dto.response.ApiResponse;
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.MorningReportDTO;
+import com.example.shortvideo.dto.response.VideoAppealDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
 import com.example.shortvideo.dto.response.VideoDraftDTO;
 import com.example.shortvideo.dto.response.VideoMilestoneDTO;
 import com.example.shortvideo.dto.response.WatchProgressDTO;
 import com.example.shortvideo.entity.Video;
 import com.example.shortvideo.service.MinIOService;
+import com.example.shortvideo.service.VideoAppealService;
 import com.example.shortvideo.service.VideoDraftService;
 import com.example.shortvideo.service.VideoService;
 import org.springframework.data.domain.Page;
@@ -29,12 +31,15 @@ public class VideoController {
     private final VideoService videoService;
     private final MinIOService minIOService;
     private final VideoDraftService videoDraftService;
+    private final VideoAppealService videoAppealService;
 
     public VideoController(VideoService videoService, MinIOService minIOService,
-                           VideoDraftService videoDraftService) {
+                           VideoDraftService videoDraftService,
+                           VideoAppealService videoAppealService) {
         this.videoService = videoService;
         this.minIOService = minIOService;
         this.videoDraftService = videoDraftService;
+        this.videoAppealService = videoAppealService;
     }
     
     @GetMapping
@@ -353,4 +358,35 @@ public class VideoController {
             return ApiResponse.error("发布失败: " + e.getMessage());
         }
     }
+
+    @PostMapping("/{id}/appeals")
+    public ApiResponse<VideoAppealDTO> submitAppeal(
+            @PathVariable Long id,
+            @RequestBody AppealRequest request) {
+
+        try {
+            VideoAppealDTO appeal = videoAppealService.submitAppeal(
+                    id, request.userId(), request.appealType(), request.content());
+            return ApiResponse.success("申诉提交成功", appeal);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(404, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(400, e.getMessage());
+        } catch (SecurityException e) {
+            return ApiResponse.error(403, e.getMessage());
+        }
+    }
+
+    @GetMapping("/{id}/appeals")
+    public ApiResponse<Page<VideoAppealDTO>> getVideoAppeals(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<VideoAppealDTO> appeals = videoAppealService.getAppealsByVideoId(id, pageable);
+        return ApiResponse.success(appeals);
+    }
+
+    public record AppealRequest(Long userId, String appealType, String content) {}
 }

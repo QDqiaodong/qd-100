@@ -242,3 +242,22 @@ CREATE TABLE IF NOT EXISTS author_heat_snapshots (
     INDEX idx_snapshot_rank (snapshot_time, rank_order),
     INDEX idx_author_id (author_id)
 );
+
+CREATE TABLE IF NOT EXISTS video_appeals (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    video_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    appeal_type VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    reviewer_id BIGINT,
+    review_comment TEXT,
+    review_result VARCHAR(20),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (video_id) REFERENCES videos(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_video_id (video_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_status (status)
+);

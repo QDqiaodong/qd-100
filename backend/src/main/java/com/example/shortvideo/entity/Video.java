@@ -38,6 +38,9 @@ public class Video {
     @Column(columnDefinition = "INT DEFAULT 0")
     private Integer duration;
     
+    @Column(name = "file_size", columnDefinition = "BIGINT DEFAULT 0")
+    private Long fileSize;
+    
     @Column(name = "like_count", columnDefinition = "INT DEFAULT 0")
     private Integer likeCount;
     
@@ -74,6 +77,7 @@ public class Video {
         updatedAt = LocalDateTime.now();
         lastHeatUpdate = LocalDateTime.now();
         if (duration == null) duration = 0;
+        if (fileSize == null) fileSize = 0L;
         if (likeCount == null) likeCount = 0;
         if (favoriteCount == null) favoriteCount = 0;
         if (viewCount == null) viewCount = 0;

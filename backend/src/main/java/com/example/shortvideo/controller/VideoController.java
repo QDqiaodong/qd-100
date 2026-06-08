@@ -3,6 +3,7 @@ package com.example.shortvideo.controller;
 import com.example.shortvideo.dto.response.ApiResponse;
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.MorningReportDTO;
+import com.example.shortvideo.dto.response.UserQuotaDTO;
 import com.example.shortvideo.dto.response.VideoAppealDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
 import com.example.shortvideo.dto.response.VideoDraftDTO;
@@ -58,6 +59,15 @@ public class VideoController {
     public ApiResponse<List<MorningReportDTO.HotTagDTO>> getHotTags() {
         return ApiResponse.success(videoService.getHotTagsSummary());
     }
+    
+    @GetMapping("/quota/{userId}")
+    public ApiResponse<UserQuotaDTO> getUserQuota(@PathVariable Long userId) {
+        UserQuotaDTO quota = videoService.getUserQuota(userId);
+        if (quota == null) {
+            return ApiResponse.error(404, "用户不存在");
+        }
+        return ApiResponse.success(quota);
+    }
 
     @GetMapping("/morning-report")
     public ApiResponse<MorningReportDTO> getMorningReport() {
@@ -82,13 +92,19 @@ public class VideoController {
             @RequestParam(value = "tags", required = false) String[] tags) {
         
         try {
+            long fileSize = file.getSize();
+            String quotaMessage = videoService.getUploadQuotaMessage(1L, fileSize);
+            if (quotaMessage != null) {
+                return ApiResponse.error(403, quotaMessage);
+            }
+            
             String videoUrl = minIOService.uploadVideo(file);
             String coverUrl = null;
             
             List<String> tagList = tags != null ? Arrays.asList(tags) : List.of();
             
             Video video = videoService.createVideo(
-                    1L, title, description, videoUrl, coverUrl, 60, tagList);
+                    1L, title, description, videoUrl, coverUrl, 60, fileSize, tagList);
             
             return ApiResponse.success("上传成功", new UploadResult(video.getId(), video.getStatus()));
         } catch (Exception e) {

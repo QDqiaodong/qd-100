@@ -3,6 +3,7 @@ package com.example.shortvideo.service;
 import com.example.shortvideo.dto.response.CheckInCalendarDTO;
 import com.example.shortvideo.dto.response.MorningReportDTO;
 import com.example.shortvideo.dto.response.UserDTO;
+import com.example.shortvideo.dto.response.UserQuotaDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
 import com.example.shortvideo.dto.response.VideoMilestoneDTO;
 import com.example.shortvideo.dto.response.WatchProgressDTO;
@@ -105,7 +106,7 @@ public class VideoService {
         return convertToDTO(video);
     }
     
-    public Video createVideo(Long userId, String title, String description, String videoUrl, String coverUrl, Integer duration, List<String> tags) {
+    public Video createVideo(Long userId, String title, String description, String videoUrl, String coverUrl, Integer duration, Long fileSize, List<String> tags) {
         Video video = Video.builder()
                 .userId(userId)
                 .title(title)
@@ -113,6 +114,7 @@ public class VideoService {
                 .videoUrl(videoUrl)
                 .coverUrl(coverUrl)
                 .duration(duration)
+                .fileSize(fileSize != null ? fileSize : 0L)
                 .status("pending")
                 .build();
         
@@ -593,5 +595,119 @@ public class VideoService {
         }
 
         return trendingVideos;
+    }
+    
+    public UserQuotaDTO getUserQuota(Long userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return null;
+        }
+        
+        int maxVideoCount = user.getMaxVideoCount() != null ? user.getMaxVideoCount() : 50;
+        int dailyUploadLimit = user.getDailyUploadLimit() != null ? user.getDailyUploadLimit() : 5;
+        long maxStorageBytes = user.getMaxStorageBytes() != null ? user.getMaxStorageBytes() : 5368709120L;
+        
+        Long totalVideoCountLong = videoRepository.countAllVideosByUserId(userId);
+        int totalVideoCount = totalVideoCountLong != null ? totalVideoCountLong.intValue() : 0;
+        
+        LocalDate today = LocalDate.now();
+        Long todayUploadCountLong = videoRepository.countUploadsByUserIdAndDate(userId, today);
+        int todayUploadCount = todayUploadCountLong != null ? todayUploadCountLong.intValue() : 0;
+        
+        Long usedStorageBytes = videoRepository.sumFileSizeByUserId(userId);
+        if (usedStorageBytes == null) {
+            usedStorageBytes = 0L;
+        }
+        
+        double videoCountPercent = maxVideoCount > 0 ? (double) totalVideoCount / maxVideoCount * 100 : 0;
+        double dailyUploadPercent = dailyUploadLimit > 0 ? (double) todayUploadCount / dailyUploadLimit * 100 : 0;
+        double storagePercent = maxStorageBytes > 0 ? (double) usedStorageBytes / maxStorageBytes * 100 : 0;
+        
+        boolean isVideoCountNearLimit = videoCountPercent >= 80;
+        boolean isDailyUploadNearLimit = dailyUploadPercent >= 80;
+        boolean isStorageNearLimit = storagePercent >= 80;
+        
+        String videoCountStatus = getStatus(videoCountPercent);
+        String dailyUploadStatus = getStatus(dailyUploadPercent);
+        String storageStatus = getStatus(storagePercent);
+        
+        return UserQuotaDTO.builder()
+                .totalVideoCount(totalVideoCount)
+                .maxVideoCount(maxVideoCount)
+                .videoCountPercent(Math.round(videoCountPercent * 100.0) / 100.0)
+                .todayUploadCount(todayUploadCount)
+                .dailyUploadLimit(dailyUploadLimit)
+                .dailyUploadPercent(Math.round(dailyUploadPercent * 100.0) / 100.0)
+                .usedStorageBytes(usedStorageBytes)
+                .maxStorageBytes(maxStorageBytes)
+                .storagePercent(Math.round(storagePercent * 100.0) / 100.0)
+                .isVideoCountNearLimit(isVideoCountNearLimit)
+                .isDailyUploadNearLimit(isDailyUploadNearLimit)
+                .isStorageNearLimit(isStorageNearLimit)
+                .videoCountStatus(videoCountStatus)
+                .dailyUploadStatus(dailyUploadStatus)
+                .storageStatus(storageStatus)
+                .build();
+    }
+    
+    private String getStatus(double percent) {
+        if (percent >= 100) {
+            return "exceeded";
+        } else if (percent >= 80) {
+            return "warning";
+        } else if (percent >= 50) {
+            return "moderate";
+        } else {
+            return "normal";
+        }
+    }
+    
+    public boolean canUploadVideo(Long userId, long newFileSize) {
+        UserQuotaDTO quota = getUserQuota(userId);
+        if (quota == null) {
+            return false;
+        }
+        
+        if (quota.getTotalVideoCount() >= quota.getMaxVideoCount()) {
+            return false;
+        }
+        if (quota.getTodayUploadCount() >= quota.getDailyUploadLimit()) {
+            return false;
+        }
+        if (quota.getUsedStorageBytes() + newFileSize > quota.getMaxStorageBytes()) {
+            return false;
+        }
+        return true;
+    }
+    
+    public String getUploadQuotaMessage(Long userId, long newFileSize) {
+        UserQuotaDTO quota = getUserQuota(userId);
+        if (quota == null) {
+            return "用户不存在";
+        }
+        
+        if (quota.getTotalVideoCount() >= quota.getMaxVideoCount()) {
+            return "视频数量已达上限（" + quota.getTotalVideoCount() + "/" + quota.getMaxVideoCount() + "），请删除部分视频后再上传";
+        }
+        if (quota.getTodayUploadCount() >= quota.getDailyUploadLimit()) {
+            return "今日上传次数已达上限（" + quota.getTodayUploadCount() + "/" + quota.getDailyUploadLimit() + "），请明天再试";
+        }
+        if (quota.getUsedStorageBytes() + newFileSize > quota.getMaxStorageBytes()) {
+            return "存储空间不足，剩余 " + formatFileSize(quota.getMaxStorageBytes() - quota.getUsedStorageBytes())
+                    + "，需要 " + formatFileSize(newFileSize);
+        }
+        return null;
+    }
+    
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        } else if (bytes < 1024 * 1024) {
+            return String.format("%.2f KB", bytes / 1024.0);
+        } else if (bytes < 1024 * 1024 * 1024) {
+            return String.format("%.2f MB", bytes / (1024.0 * 1024));
+        } else {
+            return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+        }
     }
 }

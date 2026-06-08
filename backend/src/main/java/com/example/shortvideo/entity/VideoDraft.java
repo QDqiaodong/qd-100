@@ -40,7 +40,10 @@ public class VideoDraft {
 
     @Column(columnDefinition = "INT DEFAULT 0")
     private Integer duration;
-
+    
+    @Column(name = "file_size", columnDefinition = "BIGINT DEFAULT 0")
+    private Long fileSize;
+    
     @Column(name = "tags_text", columnDefinition = "TEXT")
     private String tagsText;
 
@@ -61,6 +64,7 @@ public class VideoDraft {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (duration == null) duration = 0;
+        if (fileSize == null) fileSize = 0L;
         if (fileStatus == null) fileStatus = "not_uploaded";
         if (status == null) status = "draft";
     }

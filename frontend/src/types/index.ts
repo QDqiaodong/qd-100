@@ -204,3 +204,25 @@ export interface VideoAppeal {
   createdAt: string
   updatedAt: string
 }
+
+export interface UserQuota {
+  totalVideoCount: number
+  maxVideoCount: number
+  videoCountPercent: number
+  
+  todayUploadCount: number
+  dailyUploadLimit: number
+  dailyUploadPercent: number
+  
+  usedStorageBytes: number
+  maxStorageBytes: number
+  storagePercent: number
+  
+  isVideoCountNearLimit: boolean
+  isDailyUploadNearLimit: boolean
+  isStorageNearLimit: boolean
+  
+  videoCountStatus: string
+  dailyUploadStatus: string
+  storageStatus: string
+}

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Upload as UploadIcon, X, Image, Tag, Type, CheckCircle, ClipboardCheck, Save, ImagePlus } from 'lucide-vue-next'
+import { Upload as UploadIcon, X, Image, Tag, Type, CheckCircle, ClipboardCheck, Save, ImagePlus, HardDrive, Video, Calendar, AlertTriangle } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import Navbar from '@/components/Navbar.vue'
 import PublishCheckup from '@/components/PublishCheckup.vue'
 import { videoApi } from '@/api'
-import type { PublishCheckResult, PublishCheckItem, CheckItemSeverity, VideoDraft } from '@/types'
+import type { PublishCheckResult, PublishCheckItem, CheckItemSeverity, VideoDraft, UserQuota } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,6 +31,75 @@ const isLoadingDraft = ref(false)
 const coverFile = ref<File | null>(null)
 const coverUrl = ref('')
 const coverInputRef = ref<HTMLInputElement | null>(null)
+
+const userQuota = ref<UserQuota | null>(null)
+const quotaLoading = ref(false)
+const userId = '1'
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return bytes + ' B'
+  } else if (bytes < 1024 * 1024) {
+    return (bytes / 1024).toFixed(2) + ' KB'
+  } else if (bytes < 1024 * 1024 * 1024) {
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
+  } else {
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+  }
+}
+
+function getStatusColor(status: string): string {
+  switch (status) {
+    case 'exceeded':
+      return 'text-red-500'
+    case 'warning':
+      return 'text-orange-500'
+    case 'moderate':
+      return 'text-yellow-500'
+    default:
+      return 'text-green-500'
+  }
+}
+
+function getProgressBgColor(status: string): string {
+  switch (status) {
+    case 'exceeded':
+      return 'bg-red-500'
+    case 'warning':
+      return 'bg-orange-500'
+    case 'moderate':
+      return 'bg-yellow-500'
+    default:
+      return 'bg-green-500'
+  }
+}
+
+function loadUserQuota() {
+  quotaLoading.value = true
+  videoApi.getUserQuota(userId).then(res => {
+    if (res.data.code === 200) {
+      userQuota.value = res.data.data
+    }
+  }).catch(err => {
+    console.error('加载用户配额失败:', err)
+  }).finally(() => {
+    quotaLoading.value = false
+  })
+}
+
+const hasQuotaWarning = computed(() => {
+  if (!userQuota.value) return false
+  return userQuota.value.isVideoCountNearLimit || 
+         userQuota.value.isDailyUploadNearLimit || 
+         userQuota.value.isStorageNearLimit
+})
+
+const isQuotaExceeded = computed(() => {
+  if (!userQuota.value) return false
+  return userQuota.value.videoCountPercent >= 100 || 
+         userQuota.value.dailyUploadPercent >= 100 || 
+         userQuota.value.storagePercent >= 100
+})
 
 function handleFileChange(e: Event) {
   const target = e.target as HTMLInputElement
@@ -396,14 +465,17 @@ function handlePublishFromDraft() {
         uploadProgress.value = 100
         uploadSuccess.value = true
         showCheckup.value = false
+        loadUserQuota()
 
         setTimeout(() => {
           resetForm()
           router.push('/')
         }, 2000)
       }
-    }).catch(() => {
+    }).catch((err) => {
       isUploading.value = false
+      const errorMsg = err?.response?.data?.message || '发布失败，请稍后重试'
+      alert(errorMsg)
     })
   }
 
@@ -461,6 +533,7 @@ onMounted(() => {
   if (draftParam) {
     loadDraft(draftParam)
   }
+  loadUserQuota()
 })
 
 const commonTags = ['美食', '旅行', '健身', '学习', '音乐', '游戏', '宠物', '日常']
@@ -476,6 +549,7 @@ function addTag(tag: string) {
 }
 
 const canCheckup = computed(() => {
+  if (isQuotaExceeded.value) return false
   return !!file.value && !!title.value.trim()
 })
 </script>
@@ -503,6 +577,96 @@ const canCheckup = computed(() => {
           </div>
           
           <div class="p-6">
+            <div 
+              v-if="quotaLoading" 
+              class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-xl flex items-center gap-3"
+            >
+              <div class="w-5 h-5 border-2 border-gray-300 border-t-primary rounded-full animate-spin" />
+              <p class="text-sm text-gray-600">正在加载配额信息...</p>
+            </div>
+            
+            <div v-else-if="userQuota" class="mb-6">
+              <div 
+                v-if="isQuotaExceeded" 
+                class="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3"
+              >
+                <AlertTriangle class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p class="font-medium text-red-800">配额已用尽</p>
+                  <p class="text-sm text-red-600">您的上传配额已达上限，请升级套餐或删除部分内容后再尝试</p>
+                </div>
+              </div>
+              
+              <div 
+                v-else-if="hasQuotaWarning" 
+                class="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-start gap-3"
+              >
+                <AlertTriangle class="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p class="font-medium text-orange-800">配额即将用尽</p>
+                  <p class="text-sm text-orange-600">请注意控制上传频率，避免影响正常使用</p>
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-3 gap-3">
+                <div class="p-3 bg-gray-50 rounded-xl">
+                  <div class="flex items-center gap-2 mb-2">
+                    <Video class="w-4 h-4 text-gray-500" />
+                    <span class="text-xs text-gray-500">视频数量</span>
+                  </div>
+                  <div class="flex items-baseline gap-1 mb-2">
+                    <span :class="['text-lg font-bold', getStatusColor(userQuota.videoCountStatus)]">
+                      {{ userQuota.totalVideoCount }}
+                    </span>
+                    <span class="text-xs text-gray-400">/ {{ userQuota.maxVideoCount }}</span>
+                  </div>
+                  <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      :class="['h-full rounded-full transition-all', getProgressBgColor(userQuota.videoCountStatus)]"
+                      :style="{ width: Math.min(userQuota.videoCountPercent, 100) + '%' }"
+                    />
+                  </div>
+                </div>
+                
+                <div class="p-3 bg-gray-50 rounded-xl">
+                  <div class="flex items-center gap-2 mb-2">
+                    <Calendar class="w-4 h-4 text-gray-500" />
+                    <span class="text-xs text-gray-500">今日上传</span>
+                  </div>
+                  <div class="flex items-baseline gap-1 mb-2">
+                    <span :class="['text-lg font-bold', getStatusColor(userQuota.dailyUploadStatus)]">
+                      {{ userQuota.todayUploadCount }}
+                    </span>
+                    <span class="text-xs text-gray-400">/ {{ userQuota.dailyUploadLimit }}</span>
+                  </div>
+                  <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      :class="['h-full rounded-full transition-all', getProgressBgColor(userQuota.dailyUploadStatus)]"
+                      :style="{ width: Math.min(userQuota.dailyUploadPercent, 100) + '%' }"
+                    />
+                  </div>
+                </div>
+                
+                <div class="p-3 bg-gray-50 rounded-xl">
+                  <div class="flex items-center gap-2 mb-2">
+                    <HardDrive class="w-4 h-4 text-gray-500" />
+                    <span class="text-xs text-gray-500">存储空间</span>
+                  </div>
+                  <div class="flex items-baseline gap-1 mb-2">
+                    <span :class="['text-lg font-bold', getStatusColor(userQuota.storageStatus)]">
+                      {{ formatFileSize(userQuota.usedStorageBytes) }}
+                    </span>
+                  </div>
+                  <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      :class="['h-full rounded-full transition-all', getProgressBgColor(userQuota.storageStatus)]"
+                      :style="{ width: Math.min(userQuota.storagePercent, 100) + '%' }"
+                    />
+                  </div>
+                  <p class="text-xs text-gray-400 mt-1">共 {{ formatFileSize(userQuota.maxStorageBytes) }}</p>
+                </div>
+              </div>
+            </div>
             <div 
               v-if="uploadSuccess" 
               class="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3"

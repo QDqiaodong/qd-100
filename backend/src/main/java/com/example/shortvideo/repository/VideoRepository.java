@@ -61,4 +61,13 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
 
     @Query("SELECT v FROM Video v WHERE v.status = 'approved' ORDER BY v.heatScore DESC, v.createdAt DESC")
     List<Video> findTrendingVideos(Pageable pageable);
+    
+    @Query("SELECT COUNT(v) FROM Video v WHERE v.userId = :userId AND v.status != 'deleted' AND DATE(v.createdAt) = DATE(:date)")
+    Long countUploadsByUserIdAndDate(@Param("userId") Long userId, @Param("date") LocalDate date);
+    
+    @Query("SELECT COALESCE(SUM(v.fileSize), 0) FROM Video v WHERE v.userId = :userId AND v.status != 'deleted'")
+    Long sumFileSizeByUserId(@Param("userId") Long userId);
+    
+    @Query("SELECT COUNT(v) FROM Video v WHERE v.userId = :userId AND v.status != 'deleted'")
+    Long countAllVideosByUserId(@Param("userId") Long userId);
 }

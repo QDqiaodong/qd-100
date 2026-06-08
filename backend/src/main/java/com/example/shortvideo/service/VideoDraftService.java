@@ -27,19 +27,22 @@ public class VideoDraftService {
     private final VideoTagRepository videoTagRepository;
     private final MinIOService minIOService;
     private final TagService tagService;
+    private final VideoService videoService;
 
     public VideoDraftService(VideoDraftRepository videoDraftRepository,
                              VideoRepository videoRepository,
                              TagRepository tagRepository,
                              VideoTagRepository videoTagRepository,
                              MinIOService minIOService,
-                             TagService tagService) {
+                             TagService tagService,
+                             VideoService videoService) {
         this.videoDraftRepository = videoDraftRepository;
         this.videoRepository = videoRepository;
         this.tagRepository = tagRepository;
         this.videoTagRepository = videoTagRepository;
         this.minIOService = minIOService;
         this.tagService = tagService;
+        this.videoService = videoService;
     }
 
     public Page<VideoDraftDTO> getDraftList(Long userId, Pageable pageable) {
@@ -107,6 +110,7 @@ public class VideoDraftService {
         String videoUrl = minIOService.uploadVideo(file);
         draft.setVideoUrl(videoUrl);
         draft.setVideoFileName(file.getOriginalFilename());
+        draft.setFileSize(file.getSize());
         draft.setFileStatus("uploaded");
 
         draft = videoDraftRepository.save(draft);
@@ -133,6 +137,12 @@ public class VideoDraftService {
             throw new IllegalStateException("视频文件未上传，无法发布");
         }
 
+        long fileSize = draft.getFileSize() != null ? draft.getFileSize() : 0L;
+        String quotaMessage = videoService.getUploadQuotaMessage(userId, fileSize);
+        if (quotaMessage != null) {
+            throw new IllegalStateException(quotaMessage);
+        }
+
         List<String> tagList = draft.getTagsText() != null && !draft.getTagsText().isEmpty()
                 ? Arrays.asList(draft.getTagsText().split(","))
                 : List.of();
@@ -144,6 +154,7 @@ public class VideoDraftService {
                 .videoUrl(draft.getVideoUrl())
                 .coverUrl(draft.getCoverUrl())
                 .duration(draft.getDuration() != null ? draft.getDuration() : 0)
+                .fileSize(fileSize)
                 .status("pending")
                 .build();
 
@@ -191,6 +202,7 @@ public class VideoDraftService {
                 String videoUrl = minIOService.uploadVideo(file);
                 draft.setVideoUrl(videoUrl);
                 draft.setVideoFileName(file.getOriginalFilename());
+                draft.setFileSize(file.getSize());
                 draft.setFileStatus("uploaded");
             }
 
@@ -210,6 +222,7 @@ public class VideoDraftService {
                 String videoUrl = minIOService.uploadVideo(file);
                 builder.videoUrl(videoUrl)
                         .videoFileName(file.getOriginalFilename())
+                        .fileSize(file.getSize())
                         .fileStatus("uploaded");
             } else {
                 builder.fileStatus("not_uploaded");

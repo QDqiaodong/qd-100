@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone, MorningReport, VideoDraft, Tag, TagWithSynonyms, VideoAppeal } from '@/types'
+import type { Video, User, PageResponse, ApiResponse, Comment, CheckInCalendar, WatchProgress, VideoMilestone, MorningReport, VideoDraft, Tag, TagWithSynonyms, VideoAppeal, UserQuota } from '@/types'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -24,6 +24,10 @@ export const videoApi = {
 
   getMorningReport() {
     return api.get<ApiResponse<MorningReport>>('/videos/morning-report')
+  },
+
+  getUserQuota(userId: string) {
+    return api.get<ApiResponse<UserQuota>>(`/videos/quota/${userId}`)
   },
 
   getVideo(id: string) {

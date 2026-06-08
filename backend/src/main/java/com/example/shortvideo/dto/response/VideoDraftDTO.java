@@ -23,6 +23,7 @@ public class VideoDraftDTO {
     private String videoUrl;
     private String videoFileName;
     private Integer duration;
+    private Long fileSize;
     private String fileStatus;
     private String status;
     private String createdAt;
@@ -43,6 +44,7 @@ public class VideoDraftDTO {
                 .videoUrl(draft.getVideoUrl())
                 .videoFileName(draft.getVideoFileName())
                 .duration(draft.getDuration())
+                .fileSize(draft.getFileSize())
                 .fileStatus(draft.getFileStatus())
                 .status(draft.getStatus())
                 .createdAt(draft.getCreatedAt() != null ? draft.getCreatedAt().toString() : null)

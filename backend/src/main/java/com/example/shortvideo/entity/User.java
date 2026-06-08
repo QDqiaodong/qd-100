@@ -41,6 +41,15 @@ public class User {
     @Column(columnDefinition = "INT DEFAULT 0")
     private Integer following;
     
+    @Column(name = "max_video_count", columnDefinition = "INT DEFAULT 50")
+    private Integer maxVideoCount;
+    
+    @Column(name = "daily_upload_limit", columnDefinition = "INT DEFAULT 5")
+    private Integer dailyUploadLimit;
+    
+    @Column(name = "max_storage_bytes", columnDefinition = "BIGINT DEFAULT 5368709120")
+    private Long maxStorageBytes;
+    
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
     
@@ -53,6 +62,9 @@ public class User {
         updatedAt = LocalDateTime.now();
         if (followers == null) followers = 0;
         if (following == null) following = 0;
+        if (maxVideoCount == null) maxVideoCount = 50;
+        if (dailyUploadLimit == null) dailyUploadLimit = 5;
+        if (maxStorageBytes == null) maxStorageBytes = 5368709120L;
     }
     
     @PreUpdate

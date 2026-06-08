@@ -20,6 +20,7 @@ public class VideoDTO {
     private String coverUrl;
     private String videoUrl;
     private Integer duration;
+    private Long fileSize;
     private Integer likeCount;
     private Integer favoriteCount;
     private Integer viewCount;
@@ -38,6 +39,7 @@ public class VideoDTO {
                 .coverUrl(video.getCoverUrl())
                 .videoUrl(video.getVideoUrl())
                 .duration(video.getDuration())
+                .fileSize(video.getFileSize())
                 .likeCount(video.getLikeCount())
                 .favoriteCount(video.getFavoriteCount())
                 .viewCount(video.getViewCount())

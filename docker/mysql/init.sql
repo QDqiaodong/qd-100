@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS users (
     bio VARCHAR(500),
     followers INT DEFAULT 0,
     following INT DEFAULT 0,
+    max_video_count INT DEFAULT 50,
+    daily_upload_limit INT DEFAULT 5,
+    max_storage_bytes BIGINT DEFAULT 5368709120,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -23,6 +26,7 @@ CREATE TABLE IF NOT EXISTS videos (
     cover_url VARCHAR(500),
     video_url VARCHAR(500) NOT NULL,
     duration INT DEFAULT 0,
+    file_size BIGINT DEFAULT 0,
     like_count INT DEFAULT 0,
     favorite_count INT DEFAULT 0,
     view_count INT DEFAULT 0,
@@ -120,6 +124,7 @@ CREATE TABLE IF NOT EXISTS video_drafts (
     video_url VARCHAR(500),
     video_file_name VARCHAR(200),
     duration INT DEFAULT 0,
+    file_size BIGINT DEFAULT 0,
     tags_text TEXT,
     file_status VARCHAR(20) DEFAULT 'not_uploaded',
     status VARCHAR(20) DEFAULT 'draft',
@@ -129,15 +134,15 @@ CREATE TABLE IF NOT EXISTS video_drafts (
     INDEX idx_user_id_status (user_id, status)
 );
 
-INSERT INTO users (username, email, password, bio, followers, following) VALUES 
-('testuser', 'test@example.com', 'password', '这是一个测试用户', 100, 50);
+INSERT INTO users (username, email, password, bio, followers, following, max_video_count, daily_upload_limit, max_storage_bytes) VALUES 
+('testuser', 'test@example.com', 'password', '这是一个测试用户', 100, 50, 50, 5, 5368709120);
 
-INSERT INTO videos (user_id, title, description, cover_url, video_url, duration, status) VALUES 
-(1, '美食打卡：红烧肉制作', '今天做了一道美味的红烧肉，分享给大家！', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=delicious%20braised%20pork%20food%20photography&image_size=square', 'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4', 126, 'approved'),
-(1, '旅行日记：云南大理', '美丽的大理风光，让人沉醉', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=beautiful%20dali%20yunnan%20landscape%20travel&image_size=square', 'https://www.w3schools.com/html/movie.mp4', 13, 'approved'),
-(1, '健身打卡：每日一练', '坚持健身第30天，加油！', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=fitness%20workout%20gym%20exercise&image_size=square', 'https://www.w3schools.com/html/mov_bbb.mp4', 10, 'approved'),
-(1, '学习分享：编程入门', '从零开始学编程', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=programming%20coding%20computer%20science&image_size=square', 'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4', 126, 'approved'),
-(1, '音乐翻唱：夜曲', '翻唱周杰伦的经典歌曲', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=music%20singing%20microphone%20performance&image_size=square', 'https://www.w3schools.com/html/mov_bbb.mp4', 10, 'approved');
+INSERT INTO videos (user_id, title, description, cover_url, video_url, duration, file_size, status) VALUES 
+(1, '美食打卡：红烧肉制作', '今天做了一道美味的红烧肉，分享给大家！', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=delicious%20braised%20pork%20food%20photography&image_size=square', 'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4', 126, 15728640, 'approved'),
+(1, '旅行日记：云南大理', '美丽的大理风光，让人沉醉', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=beautiful%20dali%20yunnan%20landscape%20travel&image_size=square', 'https://www.w3schools.com/html/movie.mp4', 13, 2097152, 'approved'),
+(1, '健身打卡：每日一练', '坚持健身第30天，加油！', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=fitness%20workout%20gym%20exercise&image_size=square', 'https://www.w3schools.com/html/mov_bbb.mp4', 10, 1048576, 'approved'),
+(1, '学习分享：编程入门', '从零开始学编程', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=programming%20coding%20computer%20science&image_size=square', 'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4', 126, 15728640, 'approved'),
+(1, '音乐翻唱：夜曲', '翻唱周杰伦的经典歌曲', 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=music%20singing%20microphone%20performance&image_size=square', 'https://www.w3schools.com/html/mov_bbb.mp4', 10, 1048576, 'approved');
 
 INSERT INTO tags (name, is_canonical) VALUES 
 ('美食', TRUE), ('旅行', TRUE), ('健身', TRUE), ('学习', TRUE), ('音乐', TRUE),

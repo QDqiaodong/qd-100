@@ -56,6 +56,9 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("SELECT v FROM Video v WHERE v.userId = :userId AND v.status = 'approved' ORDER BY v.createdAt DESC")
     List<Video> findAllByUserId(@Param("userId") Long userId);
 
+    @Query("SELECT v FROM Video v WHERE v.userId = :userId ORDER BY v.createdAt DESC")
+    List<Video> findAllByUserIdIncludeAllStatus(@Param("userId") Long userId);
+
     @Query("SELECT v FROM Video v WHERE v.status = 'approved' ORDER BY v.heatScore DESC, v.createdAt DESC")
     List<Video> findTrendingVideos(Pageable pageable);
 }

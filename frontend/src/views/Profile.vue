@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { User, Camera, Edit3, Trash2, Heart, AlertCircle, FileText, Send } from 'lucide-vue-next'
 import Navbar from '@/components/Navbar.vue'
 import CalendarWall from '@/components/CalendarWall.vue'
 import { userApi, videoApi } from '@/api'
-import type { User as UserType, Video } from '@/types'
+import type { User as UserType, Video, VideoAppeal } from '@/types'
 
 const user = ref<UserType | null>(null)
 const videos = ref<Video[]>([])
 const favorites = ref<Video[]>([])
+const appeals = ref<VideoAppeal[]>([])
 const activeTab = ref<'videos' | 'favorites' | 'appeals'>('videos')
 const editingVideo = ref<Video | null>(null)
 const editTitle = ref('')
@@ -19,6 +20,8 @@ const appealingVideo = ref<Video | null>(null)
 const appealType = ref('supplement')
 const appealContent = ref('')
 const submittingAppeal = ref(false)
+
+const appealsLoading = ref(false)
 
 const appealTypes = [
   { value: 'supplement', label: '补充说明' },
@@ -34,7 +37,7 @@ function fetchUser() {
 
 function fetchVideos() {
   if (user.value) {
-    userApi.getUserVideos(user.value.id).then(res => {
+    userApi.getUserAllVideos(user.value.id).then(res => {
       videos.value = res.data.data
     })
   }
@@ -47,6 +50,23 @@ function fetchFavorites() {
     })
   }
 }
+
+function fetchAppeals() {
+  if (user.value && !appealsLoading.value) {
+    appealsLoading.value = true
+    userApi.getUserAppeals(user.value.id, { page: 0, size: 20 }).then(res => {
+      appeals.value = res.data.data.content
+    }).finally(() => {
+      appealsLoading.value = false
+    })
+  }
+}
+
+watch(() => activeTab.value, (newTab) => {
+  if (newTab === 'appeals') {
+    fetchAppeals()
+  }
+})
 
 function handleEdit(video: Video) {
   editingVideo.value = video
@@ -132,6 +152,40 @@ function getStatusClass(status: string): string {
   return map[status] || 'bg-gray-100 text-gray-700'
 }
 
+function getAppealTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    supplement: '补充说明',
+    explain: '解释意图',
+    review: '申请复核'
+  }
+  return map[type] || type
+}
+
+function getAppealStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    pending: '待处理',
+    reviewed: '已处理'
+  }
+  return map[status] || status
+}
+
+function getAppealResultLabel(result?: string): string {
+  if (!result) return '-'
+  const map: Record<string, string> = {
+    upheld: '申诉成立',
+    rejected: '驳回申诉'
+  }
+  return map[result] || result
+}
+
+function getAppealStatusClass(status: string): string {
+  const map: Record<string, string> = {
+    pending: 'bg-yellow-100 text-yellow-700',
+    reviewed: 'bg-green-100 text-green-700'
+  }
+  return map[status] || 'bg-gray-100 text-gray-700'
+}
+
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60)
   const secs = seconds % 60
@@ -143,6 +197,10 @@ function formatNumber(num: number): string {
     return (num / 10000).toFixed(1) + 'w'
   }
   return num.toString()
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleString('zh-CN')
 }
 
 onMounted(() => {
@@ -333,12 +391,65 @@ onMounted(() => {
           </div>
 
           <div v-else-if="activeTab === 'appeals'" class="p-4">
-            <div class="text-center py-16">
+            <div v-if="appealsLoading && appeals.length === 0" class="flex justify-center py-12">
+              <div class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+
+            <div v-else-if="appeals.length === 0" class="text-center py-16">
               <div class="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
                 <FileText class="w-8 h-8 text-gray-400" />
               </div>
-              <p class="text-gray-500">请切换到「我的作品」查看被拒视频并提交申诉</p>
+              <p class="text-gray-500">暂无申诉记录</p>
               <p class="text-gray-400 text-sm mt-2">申诉提交后可在此处查看进度</p>
+            </div>
+
+            <div v-else class="space-y-3">
+              <div
+                v-for="appeal in appeals"
+                :key="appeal.id"
+                class="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors"
+              >
+                <div class="flex items-start justify-between gap-3 mb-2">
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="text-xs px-2 py-0.5 rounded-full font-medium"
+                      :class="getAppealStatusClass(appeal.status)"
+                    >
+                      {{ getAppealStatusLabel(appeal.status) }}
+                    </span>
+                    <span class="text-xs text-gray-400">
+                      #{{ appeal.id }}
+                    </span>
+                  </div>
+                  <span class="text-xs text-gray-400">
+                    {{ formatDate(appeal.createdAt) }}
+                  </span>
+                </div>
+
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-sm text-gray-600">{{ getAppealTypeLabel(appeal.appealType) }}</span>
+                  <span v-if="appeal.video" class="text-sm text-gray-500 truncate flex-1">
+                    · {{ appeal.video.title }}
+                  </span>
+                </div>
+
+                <p class="text-sm text-gray-700 line-clamp-2 mb-3">{{ appeal.content }}</p>
+
+                <div v-if="appeal.status === 'reviewed'" class="pt-3 border-t border-gray-200">
+                  <div class="flex items-center gap-2 text-sm">
+                    <span class="text-gray-500">复核结果：</span>
+                    <span
+                      :class="appeal.reviewResult === 'upheld' ? 'text-green-600' : 'text-red-600'"
+                      class="font-medium"
+                    >
+                      {{ getAppealResultLabel(appeal.reviewResult) }}
+                    </span>
+                  </div>
+                  <p v-if="appeal.reviewComment" class="text-sm text-gray-600 mt-1 line-clamp-2">
+                    {{ appeal.reviewComment }}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

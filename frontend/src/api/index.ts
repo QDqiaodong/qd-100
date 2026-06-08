@@ -248,8 +248,16 @@ export const userApi = {
     return api.get<ApiResponse<Video[]>>(`/users/${userId}/videos`)
   },
 
+  getUserAllVideos(userId: string) {
+    return api.get<ApiResponse<Video[]>>(`/users/${userId}/videos/all`)
+  },
+
   getUserFavorites(userId: string) {
     return api.get<ApiResponse<Video[]>>(`/users/${userId}/favorites`)
+  },
+
+  getUserAppeals(userId: string, params?: { page?: number; size?: number }) {
+    return api.get<ApiResponse<PageResponse<VideoAppeal>>>(`/users/${userId}/appeals`, { params })
   }
 }
 

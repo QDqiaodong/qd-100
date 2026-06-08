@@ -156,6 +156,11 @@ public class VideoService {
         return videos.stream().map(this::convertToDTO).collect(Collectors.toList());
     }
 
+    public List<VideoDTO> getUserAllVideos(Long userId) {
+        List<Video> videos = videoRepository.findAllByUserIdIncludeAllStatus(userId);
+        return videos.stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+
     public List<VideoDTO> getUserFavoriteVideos(Long userId) {
         List<Video> videos = videoRepository.findFavoriteVideosByUserId(userId);
         return videos.stream().map(this::convertToDTO).collect(Collectors.toList());

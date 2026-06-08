@@ -1,19 +1,27 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { User, Camera, Edit3, Trash2, Heart, AlertCircle, FileText, Send } from 'lucide-vue-next'
+import { User, Camera, Edit3, Trash2, Heart, AlertCircle, FileText, Send, Clock, Play, CheckCircle } from 'lucide-vue-next'
 import Navbar from '@/components/Navbar.vue'
 import CalendarWall from '@/components/CalendarWall.vue'
+import VideoPlayerModal from '@/components/VideoPlayer.vue'
 import { userApi, videoApi } from '@/api'
-import type { User as UserType, Video, VideoAppeal } from '@/types'
+import type { User as UserType, Video, VideoAppeal, WatchProgress } from '@/types'
 
 const user = ref<UserType | null>(null)
 const videos = ref<Video[]>([])
 const favorites = ref<Video[]>([])
 const appeals = ref<VideoAppeal[]>([])
-const activeTab = ref<'videos' | 'favorites' | 'appeals'>('videos')
+const watchHistory = ref<WatchProgress[]>([])
+const watchHistoryLoading = ref(false)
+const hasMoreHistory = ref(true)
+const historyPage = ref(0)
+const historyFilter = ref<'all' | 'completed' | 'uncompleted'>('all')
+const activeTab = ref<'videos' | 'favorites' | 'watch-history' | 'appeals'>('videos')
 const editingVideo = ref<Video | null>(null)
 const editTitle = ref('')
 const editDescription = ref('')
+const selectedHistoryVideo = ref<Video | null>(null)
+const selectedHistoryStartTime = ref<number | undefined>(undefined)
 
 const showAppealModal = ref(false)
 const appealingVideo = ref<Video | null>(null)
@@ -51,6 +59,56 @@ function fetchFavorites() {
   }
 }
 
+function fetchWatchHistory(reset = false) {
+  if (!user.value || watchHistoryLoading.value) return
+  
+  if (reset) {
+    historyPage.value = 0
+    watchHistory.value = []
+    hasMoreHistory.value = true
+  }
+  
+  if (!hasMoreHistory.value) return
+  
+  watchHistoryLoading.value = true
+  
+  const fetchFn = historyFilter.value === 'completed' 
+    ? videoApi.getCompletedWatchHistory(user.value.id, { page: historyPage.value, size: 12 })
+    : videoApi.getWatchHistory(user.value.id, { page: historyPage.value, size: 12 })
+  
+  fetchFn.then(res => {
+    const newItems = res.data.data.content
+    if (historyFilter.value === 'uncompleted') {
+      const filtered = newItems.filter((item: WatchProgress) => !item.isCompleted)
+      if (newItems.length === 0 || filtered.length < newItems.length) {
+        hasMoreHistory.value = false
+      }
+      watchHistory.value = [...watchHistory.value, ...filtered]
+    } else {
+      if (newItems.length === 0) {
+        hasMoreHistory.value = false
+      }
+      watchHistory.value = [...watchHistory.value, ...newItems]
+    }
+    historyPage.value++
+  }).catch(err => {
+    console.error('Failed to fetch watch history:', err)
+  }).finally(() => {
+    watchHistoryLoading.value = false
+  })
+}
+
+function handleHistoryVideoClick(progress: WatchProgress) {
+  selectedHistoryVideo.value = progress.video
+  selectedHistoryStartTime.value = progress.isCompleted ? 0 : progress.currentTime
+}
+
+function closeHistoryPlayer() {
+  selectedHistoryVideo.value = null
+  selectedHistoryStartTime.value = undefined
+  fetchWatchHistory(true)
+}
+
 function fetchAppeals() {
   if (user.value && !appealsLoading.value) {
     appealsLoading.value = true
@@ -65,6 +123,14 @@ function fetchAppeals() {
 watch(() => activeTab.value, (newTab) => {
   if (newTab === 'appeals') {
     fetchAppeals()
+  } else if (newTab === 'watch-history') {
+    fetchWatchHistory(true)
+  }
+})
+
+watch(() => historyFilter.value, () => {
+  if (activeTab.value === 'watch-history') {
+    fetchWatchHistory(true)
   }
 })
 
@@ -203,6 +269,26 @@ function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
+function formatRelativeTime(dateStr: string): string {
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / (1000 * 60))
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffMins < 1) return '刚刚'
+  if (diffMins < 60) return `${diffMins}分钟前`
+  if (diffHours < 24) return `${diffHours}小时前`
+  if (diffDays < 7) return `${diffDays}天前`
+  return date.toLocaleDateString('zh-CN')
+}
+
+function getProgressPercent(progress: WatchProgress): number {
+  if (!progress.video.duration || progress.video.duration === 0) return 0
+  return Math.min((progress.currentTime / progress.video.duration) * 100, 100)
+}
+
 onMounted(() => {
   fetchUser()
 })
@@ -287,6 +373,18 @@ onMounted(() => {
               <span>我的收藏</span>
               <div 
                 v-if="activeTab === 'favorites'"
+                class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+              />
+            </button>
+            <button
+              class="flex-1 py-4 text-center font-medium transition-colors relative"
+              :class="activeTab === 'watch-history' ? 'text-primary' : 'text-gray-500 hover:text-gray-700'"
+              @click="activeTab = 'watch-history'"
+            >
+              <Clock class="w-5 h-5 mx-auto mb-1" />
+              <span>观看历史</span>
+              <div 
+                v-if="activeTab === 'watch-history'"
                 class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
               />
             </button>
@@ -387,6 +485,102 @@ onMounted(() => {
                   {{ formatDuration(video.duration) }}
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div v-else-if="activeTab === 'watch-history'" class="p-4">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex gap-2">
+                <button
+                  v-for="filter in [{ value: 'all', label: '全部' }, { value: 'completed', label: '已看完' }, { value: 'uncompleted', label: '在看' }]"
+                  :key="filter.value"
+                  class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                  :class="historyFilter === filter.value 
+                    ? 'bg-primary text-white' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                  @click="historyFilter = filter.value as 'all' | 'completed' | 'uncompleted'"
+                >
+                  {{ filter.label }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="watchHistoryLoading && watchHistory.length === 0" class="flex justify-center py-12">
+              <div class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+
+            <div v-else-if="watchHistory.length === 0" class="text-center py-16">
+              <div class="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                <Clock class="w-8 h-8 text-gray-400" />
+              </div>
+              <p class="text-gray-500">暂无观看记录</p>
+              <p class="text-gray-400 text-sm mt-2">快去发现精彩视频吧～</p>
+            </div>
+
+            <div v-else class="space-y-3">
+              <div
+                v-for="progress in watchHistory"
+                :key="progress.id"
+                class="flex gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer group"
+                @click="handleHistoryVideoClick(progress)"
+              >
+                <div class="relative flex-shrink-0 w-28 aspect-video bg-gray-200 rounded-lg overflow-hidden">
+                  <img
+                    :src="progress.video.coverUrl || 'https://neeko-copilot.bytedance.net/api/text_to_image?prompt=video%20thumbnail%20abstract&image_size=square'"
+                    :alt="progress.video.title"
+                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                    <div class="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Play class="w-5 h-5 text-primary ml-0.5" />
+                    </div>
+                  </div>
+                  <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
+                    <div
+                      class="h-full bg-primary transition-all"
+                      :style="{ width: getProgressPercent(progress) + '%' }"
+                    />
+                  </div>
+                  <div class="absolute top-1 right-1">
+                    <CheckCircle
+                      v-if="progress.isCompleted"
+                      class="w-5 h-5 text-green-500"
+                    />
+                  </div>
+                </div>
+
+                <div class="flex-1 min-w-0">
+                  <h3 class="text-sm font-medium text-gray-900 line-clamp-2 group-hover:text-primary transition-colors">
+                    {{ progress.video.title }}
+                  </h3>
+                  <p class="text-xs text-gray-500 mt-1">
+                    {{ progress.video.author?.username || '未知作者' }}
+                  </p>
+                  <div class="flex items-center gap-2 mt-2">
+                    <span class="text-xs text-gray-400">
+                      {{ formatDuration(progress.currentTime) }} / {{ formatDuration(progress.video.duration || 0) }}
+                    </span>
+                    <span class="text-xs text-gray-300">·</span>
+                    <span class="text-xs text-gray-400">
+                      {{ formatRelativeTime(progress.updatedAt) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="watchHistoryLoading" class="flex justify-center py-4">
+                <div class="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+              <div v-else-if="!hasMoreHistory && watchHistory.length > 0" class="text-center py-4 text-gray-400 text-sm">
+                没有更多了
+              </div>
+              <button
+                v-if="hasMoreHistory && !watchHistoryLoading && watchHistory.length > 0"
+                class="w-full py-3 text-sm text-gray-500 hover:text-primary transition-colors"
+                @click="fetchWatchHistory()"
+              >
+                加载更多
+              </button>
             </div>
           </div>
 
@@ -560,6 +754,13 @@ onMounted(() => {
             </div>
           </div>
         </div>
+
+        <VideoPlayerModal
+          v-if="selectedHistoryVideo"
+          :video="selectedHistoryVideo"
+          :start-time="selectedHistoryStartTime"
+          @close="closeHistoryPlayer"
+        />
       </div>
     </div>
   </div>

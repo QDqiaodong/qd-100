@@ -173,6 +173,37 @@ public class VideoController {
         List<WatchProgressDTO> videos = videoService.getContinueWatchingVideos(userId);
         return ApiResponse.success(videos);
     }
+
+    @GetMapping("/watch-history")
+    public ApiResponse<Page<WatchProgressDTO>> getWatchHistory(
+            @RequestParam Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<WatchProgressDTO> history = videoService.getWatchHistory(userId, pageable);
+        return ApiResponse.success(history);
+    }
+
+    @GetMapping("/watch-history/completed")
+    public ApiResponse<Page<WatchProgressDTO>> getCompletedWatchHistory(
+            @RequestParam Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<WatchProgressDTO> history = videoService.getCompletedWatchHistory(userId, pageable);
+        return ApiResponse.success(history);
+    }
+
+    @GetMapping("/watch-history/count")
+    public ApiResponse<Long> getWatchProgressCount(
+            @RequestParam Long userId,
+            @RequestParam(required = false) Boolean completed) {
+        
+        long count = videoService.getWatchProgressCount(userId, completed);
+        return ApiResponse.success(count);
+    }
     
     public record UploadResult(Long id, String status) {}
     

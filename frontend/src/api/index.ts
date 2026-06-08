@@ -192,6 +192,24 @@ export const videoApi = {
     })
   },
 
+  getWatchHistory(userId: string, params?: { page?: number; size?: number }) {
+    return api.get<ApiResponse<PageResponse<WatchProgress>>>('/videos/watch-history', {
+      params: { userId, ...params }
+    })
+  },
+
+  getCompletedWatchHistory(userId: string, params?: { page?: number; size?: number }) {
+    return api.get<ApiResponse<PageResponse<WatchProgress>>>('/videos/watch-history/completed', {
+      params: { userId, ...params }
+    })
+  },
+
+  getWatchProgressCount(userId: string, completed?: boolean) {
+    return api.get<ApiResponse<number>>('/videos/watch-history/count', {
+      params: { userId, completed }
+    })
+  },
+
   getVideoMilestones(videoId: string) {
     return api.get<ApiResponse<VideoMilestone[]>>(`/videos/${videoId}/milestones`)
   },

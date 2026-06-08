@@ -19,6 +19,7 @@ import com.example.shortvideo.repository.VideoRepository;
 import com.example.shortvideo.repository.VideoTagRepository;
 import com.example.shortvideo.repository.WatchProgressRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -385,6 +386,44 @@ public class VideoService {
                 .filter(Objects::nonNull)
                 .limit(10)
                 .collect(Collectors.toList());
+    }
+
+    public Page<WatchProgressDTO> getWatchHistory(Long userId, Pageable pageable) {
+        Page<WatchProgress> progressPage = watchProgressRepository.findByUserIdOrderByUpdatedAtDesc(userId, pageable);
+        
+        List<WatchProgressDTO> dtoList = progressPage.getContent().stream()
+                .map(progress -> {
+                    Video video = videoRepository.findById(progress.getVideoId()).orElse(null);
+                    if (video == null) {
+                        return null;
+                    }
+                    return WatchProgressDTO.fromEntity(progress, convertToDTO(video));
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        
+        return new PageImpl<>(dtoList, pageable, progressPage.getTotalElements());
+    }
+
+    public Page<WatchProgressDTO> getCompletedWatchHistory(Long userId, Pageable pageable) {
+        Page<WatchProgress> progressPage = watchProgressRepository.findCompletedByUserIdOrderByUpdatedAtDesc(userId, pageable);
+        
+        List<WatchProgressDTO> dtoList = progressPage.getContent().stream()
+                .map(progress -> {
+                    Video video = videoRepository.findById(progress.getVideoId()).orElse(null);
+                    if (video == null) {
+                        return null;
+                    }
+                    return WatchProgressDTO.fromEntity(progress, convertToDTO(video));
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        
+        return new PageImpl<>(dtoList, pageable, progressPage.getTotalElements());
+    }
+
+    public long getWatchProgressCount(Long userId, Boolean isCompleted) {
+        return watchProgressRepository.countByUserIdAndIsCompleted(userId, isCompleted);
     }
 
     public List<VideoMilestoneDTO> getVideoMilestones(Long videoId) {

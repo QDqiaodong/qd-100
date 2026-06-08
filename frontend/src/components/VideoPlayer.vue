@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { Heart, Bookmark, MessageCircle, Share2, Volume2, VolumeX, Maximize, Pause, Play, Flag } from 'lucide-vue-next'
-import type { Video, Comment, VideoMilestone } from '@/types'
+import type { Video, Comment, VideoMilestone, WatchProgress } from '@/types'
 import { videoApi } from '@/api'
 
 const props = defineProps<{
   video: Video
   startTime?: number
+  autoResume?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -35,6 +36,9 @@ const videoLoading = ref(true)
 const videoError = ref(false)
 const milestones = ref<VideoMilestone[]>([])
 const hoveredMilestone = ref<VideoMilestone | null>(null)
+const watchProgress = ref<WatchProgress | null>(null)
+const showResumeTip = ref(false)
+const resumeTime = ref(0)
 
 function togglePlay() {
   if (videoRef.value) {
@@ -82,6 +86,9 @@ function handleLoadedMetadata() {
     if (props.startTime !== undefined && props.startTime > 0 && props.startTime < duration.value) {
       videoRef.value.currentTime = props.startTime
       currentTime.value = props.startTime
+    } else if (props.autoResume && watchProgress.value && watchProgress.value.currentTime > 0 && !watchProgress.value.isCompleted) {
+      videoRef.value.currentTime = watchProgress.value.currentTime
+      currentTime.value = watchProgress.value.currentTime
     }
   }
 }
@@ -140,6 +147,36 @@ function loadMilestones() {
   }).catch(err => {
     console.error('Failed to load milestones:', err)
   })
+}
+
+function loadWatchProgress() {
+  if (props.startTime !== undefined) return
+  
+  videoApi.getWatchProgress(props.video.id, userId).then(res => {
+    const progress = res.data.data
+    if (progress && progress.currentTime > 0 && !progress.isCompleted && progress.currentTime < (duration.value || props.video.duration || 0) - 2) {
+      watchProgress.value = progress
+      resumeTime.value = progress.currentTime
+      showResumeTip.value = true
+    }
+  }).catch(err => {
+    console.error('Failed to load watch progress:', err)
+  })
+}
+
+function resumeFromLastPosition() {
+  if (videoRef.value && resumeTime.value > 0) {
+    videoRef.value.currentTime = resumeTime.value
+    currentTime.value = resumeTime.value
+    showResumeTip.value = false
+    if (!isPlaying.value) {
+      togglePlay()
+    }
+  }
+}
+
+function dismissResumeTip() {
+  showResumeTip.value = false
 }
 
 function handleLike() {
@@ -204,7 +241,11 @@ function resetControlsTimeout() {
 watch(() => props.video, (newVideo) => {
   likeCount.value = newVideo.likeCount
   favoriteCount.value = newVideo.favoriteCount
+  watchProgress.value = null
+  showResumeTip.value = false
+  resumeTime.value = 0
   loadMilestones()
+  loadWatchProgress()
 })
 
 watch(() => props.startTime, (newTime) => {
@@ -219,6 +260,7 @@ onMounted(() => {
     comments.value = res.data.data
   })
   loadMilestones()
+  loadWatchProgress()
 })
 
 onUnmounted(() => {
@@ -285,6 +327,27 @@ onUnmounted(() => {
         <div class="w-20 h-20 rounded-full bg-white/90 flex items-center justify-center hover:scale-110 transition-transform">
           <Play class="w-10 h-10 text-primary ml-1" />
         </div>
+      </div>
+
+      <div 
+        v-if="showResumeTip && !videoLoading && !videoError"
+        class="absolute bottom-24 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-3 z-20"
+      >
+        <div class="text-white/90 text-sm">
+          上次看到 <span class="text-primary font-medium">{{ formatTime(resumeTime) }}</span>
+        </div>
+        <button 
+          class="px-3 py-1 bg-primary text-white text-sm rounded-lg hover:bg-orange-600 transition-colors"
+          @click.stop="resumeFromLastPosition"
+        >
+          继续播放
+        </button>
+        <button 
+          class="text-white/50 hover:text-white/80 transition-colors"
+          @click.stop="dismissResumeTip"
+        >
+          <span class="text-xl leading-none">&times;</span>
+        </button>
       </div>
       
       <div 

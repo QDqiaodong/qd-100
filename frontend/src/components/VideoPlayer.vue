@@ -86,9 +86,13 @@ function handleLoadedMetadata() {
     if (props.startTime !== undefined && props.startTime > 0 && props.startTime < duration.value) {
       videoRef.value.currentTime = props.startTime
       currentTime.value = props.startTime
-    } else if (props.autoResume && watchProgress.value && watchProgress.value.currentTime > 0 && !watchProgress.value.isCompleted) {
-      videoRef.value.currentTime = watchProgress.value.currentTime
-      currentTime.value = watchProgress.value.currentTime
+    } else if (watchProgress.value && watchProgress.value.currentTime > 0 && !watchProgress.value.isCompleted && watchProgress.value.currentTime < duration.value - 2) {
+      if (props.autoResume) {
+        videoRef.value.currentTime = watchProgress.value.currentTime
+        currentTime.value = watchProgress.value.currentTime
+      } else {
+        showResumeTip.value = true
+      }
     }
   }
 }
@@ -151,13 +155,16 @@ function loadMilestones() {
 
 function loadWatchProgress() {
   if (props.startTime !== undefined) return
+  if (props.autoResume === false) return
   
   videoApi.getWatchProgress(props.video.id, userId).then(res => {
     const progress = res.data.data
-    if (progress && progress.currentTime > 0 && !progress.isCompleted && progress.currentTime < (duration.value || props.video.duration || 0) - 2) {
+    if (progress && progress.currentTime > 0 && !progress.isCompleted) {
       watchProgress.value = progress
       resumeTime.value = progress.currentTime
-      showResumeTip.value = true
+      if (duration.value > 0 && progress.currentTime < duration.value - 2) {
+        showResumeTip.value = true
+      }
     }
   }).catch(err => {
     console.error('Failed to load watch progress:', err)

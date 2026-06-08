@@ -44,6 +44,7 @@ public class VideoService {
     private final WatchProgressRepository watchProgressRepository;
     private final HeatService heatService;
     private final TagService tagService;
+    private final ContentGovernanceService contentGovernanceService;
     
     public VideoService(VideoRepository videoRepository, 
                        UserRepository userRepository,
@@ -53,7 +54,8 @@ public class VideoService {
                        RedisService redisService,
                        WatchProgressRepository watchProgressRepository,
                        HeatService heatService,
-                       TagService tagService) {
+                       TagService tagService,
+                       ContentGovernanceService contentGovernanceService) {
         this.videoRepository = videoRepository;
         this.userRepository = userRepository;
         this.tagRepository = tagRepository;
@@ -63,6 +65,7 @@ public class VideoService {
         this.watchProgressRepository = watchProgressRepository;
         this.heatService = heatService;
         this.tagService = tagService;
+        this.contentGovernanceService = contentGovernanceService;
     }
     
     public Page<VideoDTO> getVideos(String sort, String tag, Pageable pageable) {
@@ -107,6 +110,15 @@ public class VideoService {
     }
     
     public Video createVideo(Long userId, String title, String description, String videoUrl, String coverUrl, Integer duration, Long fileSize, List<String> tags) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+
+        contentGovernanceService.refreshPenaltyStatus(userId);
+
+        String auditPriority = user.getAuditPriority() != null ? user.getAuditPriority() : "normal";
+
         Video video = Video.builder()
                 .userId(userId)
                 .title(title)
@@ -116,6 +128,8 @@ public class VideoService {
                 .duration(duration)
                 .fileSize(fileSize != null ? fileSize : 0L)
                 .status("pending")
+                .auditPriority(auditPriority)
+                .visibility("public")
                 .build();
         
         video = videoRepository.save(video);

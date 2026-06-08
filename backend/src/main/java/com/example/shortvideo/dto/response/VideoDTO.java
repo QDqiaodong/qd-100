@@ -28,6 +28,10 @@ public class VideoDTO {
     private Integer shareCount;
     private Double heatScore;
     private String status;
+    private String auditPriority;
+    private String visibility;
+    private String rejectReason;
+    private String violationType;
     private UserDTO author;
     private String createdAt;
     
@@ -47,6 +51,10 @@ public class VideoDTO {
                 .shareCount(video.getShareCount())
                 .heatScore(video.getHeatScore())
                 .status(video.getStatus())
+                .auditPriority(video.getAuditPriority())
+                .visibility(video.getVisibility())
+                .rejectReason(video.getRejectReason())
+                .violationType(video.getViolationType())
                 .createdAt(video.getCreatedAt().toString())
                 .build();
     }

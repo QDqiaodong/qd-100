@@ -14,6 +14,13 @@ CREATE TABLE IF NOT EXISTS users (
     max_video_count INT DEFAULT 50,
     daily_upload_limit INT DEFAULT 5,
     max_storage_bytes BIGINT DEFAULT 5368709120,
+    penalty_level VARCHAR(20) DEFAULT 'normal',
+    active_penalty_points INT DEFAULT 0,
+    total_violation_count INT DEFAULT 0,
+    last_violation_at DATETIME,
+    content_visibility VARCHAR(20) DEFAULT 'public',
+    audit_priority VARCHAR(20) DEFAULT 'normal',
+    penalty_expires_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -35,11 +42,16 @@ CREATE TABLE IF NOT EXISTS videos (
     heat_score DOUBLE DEFAULT 0,
     last_heat_update DATETIME DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(20) DEFAULT 'pending',
+    audit_priority VARCHAR(20) DEFAULT 'normal',
+    visibility VARCHAR(20) DEFAULT 'public',
+    reject_reason TEXT,
+    violation_type VARCHAR(50),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),
     INDEX idx_heat_score (heat_score),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_audit_priority (audit_priority)
 );
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -265,4 +277,22 @@ CREATE TABLE IF NOT EXISTS video_appeals (
     INDEX idx_video_id (video_id),
     INDEX idx_user_id (user_id),
     INDEX idx_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS violation_records (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    video_id BIGINT,
+    violation_type VARCHAR(50) NOT NULL,
+    violation_reason TEXT,
+    severity VARCHAR(20) NOT NULL DEFAULT 'minor',
+    is_repeat_offense BOOLEAN DEFAULT FALSE,
+    penalty_points INT DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (video_id) REFERENCES videos(id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_violation_type (violation_type),
+    INDEX idx_created_at (created_at)
 );

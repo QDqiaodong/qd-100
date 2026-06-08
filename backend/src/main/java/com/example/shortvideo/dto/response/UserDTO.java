@@ -19,6 +19,10 @@ public class UserDTO {
     private Integer followers;
     private Integer following;
     private Integer videoCount;
+    private String penaltyLevel;
+    private Integer activePenaltyPoints;
+    private String contentVisibility;
+    private String auditPriority;
     private String createdAt;
     
     public static UserDTO fromEntity(User user) {
@@ -30,6 +34,10 @@ public class UserDTO {
                 .bio(user.getBio())
                 .followers(user.getFollowers())
                 .following(user.getFollowing())
+                .penaltyLevel(user.getPenaltyLevel())
+                .activePenaltyPoints(user.getActivePenaltyPoints())
+                .contentVisibility(user.getContentVisibility())
+                .auditPriority(user.getAuditPriority())
                 .createdAt(user.getCreatedAt().toString())
                 .build();
     }

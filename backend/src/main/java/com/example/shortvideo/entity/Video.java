@@ -64,6 +64,18 @@ public class Video {
     
     @Column(columnDefinition = "VARCHAR(20) DEFAULT 'pending'")
     private String status;
+
+    @Column(name = "audit_priority", columnDefinition = "VARCHAR(20) DEFAULT 'normal'")
+    private String auditPriority;
+
+    @Column(name = "visibility", columnDefinition = "VARCHAR(20) DEFAULT 'public'")
+    private String visibility;
+
+    @Column(name = "reject_reason", columnDefinition = "TEXT")
+    private String rejectReason;
+
+    @Column(name = "violation_type", length = 50)
+    private String violationType;
     
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -85,6 +97,8 @@ public class Video {
         if (shareCount == null) shareCount = 0;
         if (heatScore == null) heatScore = 0.0;
         if (status == null) status = "pending";
+        if (auditPriority == null) auditPriority = "normal";
+        if (visibility == null) visibility = "public";
     }
     
     @PreUpdate

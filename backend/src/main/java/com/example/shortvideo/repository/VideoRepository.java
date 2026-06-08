@@ -40,6 +40,20 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     
     @Query("SELECT v FROM Video v WHERE v.status = :status")
     Page<Video> findByStatusWithPagination(@Param("status") String status, Pageable pageable);
+
+    @Query("SELECT v FROM Video v WHERE v.status = 'pending' ORDER BY " +
+           "CASE v.auditPriority " +
+           "WHEN 'highest' THEN 1 " +
+           "WHEN 'high' THEN 2 " +
+           "WHEN 'normal' THEN 3 " +
+           "ELSE 4 END, " +
+           "v.createdAt ASC")
+    Page<Video> findPendingOrderedByPriority(Pageable pageable);
+
+    @Query("SELECT v FROM Video v WHERE v.status = :status AND v.auditPriority = :priority ORDER BY v.createdAt DESC")
+    Page<Video> findByStatusAndAuditPriority(@Param("status") String status,
+                                             @Param("priority") String priority,
+                                             Pageable pageable);
     
     @Query("SELECT v FROM Video v WHERE v.userId = :userId AND v.status = 'approved' AND v.createdAt >= :startDate AND v.createdAt < :endDate ORDER BY v.createdAt DESC")
     List<Video> findByUserIdAndDateRange(

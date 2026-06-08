@@ -1,14 +1,21 @@
 package com.example.shortvideo.controller;
 
 import com.example.shortvideo.dto.response.ApiResponse;
+import com.example.shortvideo.dto.response.PenaltyDetailDTO;
 import com.example.shortvideo.dto.response.VideoAppealDTO;
 import com.example.shortvideo.dto.response.VideoDTO;
+import com.example.shortvideo.dto.response.ViolationRecordDTO;
+import com.example.shortvideo.entity.User;
 import com.example.shortvideo.service.AdminService;
+import com.example.shortvideo.service.ContentGovernanceService;
 import com.example.shortvideo.service.VideoAppealService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -16,10 +23,14 @@ public class AdminController {
     
     private final AdminService adminService;
     private final VideoAppealService videoAppealService;
+    private final ContentGovernanceService contentGovernanceService;
     
-    public AdminController(AdminService adminService, VideoAppealService videoAppealService) {
+    public AdminController(AdminService adminService,
+                           VideoAppealService videoAppealService,
+                           ContentGovernanceService contentGovernanceService) {
         this.adminService = adminService;
         this.videoAppealService = videoAppealService;
+        this.contentGovernanceService = contentGovernanceService;
     }
     
     @GetMapping("/videos")
@@ -32,17 +43,108 @@ public class AdminController {
         Page<VideoDTO> videos = adminService.getVideosByStatus(status, pageable);
         return ApiResponse.success(videos);
     }
+
+    @GetMapping("/videos/priority")
+    public ApiResponse<Page<VideoDTO>> getPendingVideosByPriority(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<VideoDTO> videos = adminService.getPendingVideosByPriority(pageable);
+        return ApiResponse.success(videos);
+    }
+
+    @GetMapping("/videos/audit-priority/{priority}")
+    public ApiResponse<Page<VideoDTO>> getVideosByAuditPriority(
+            @PathVariable String priority,
+            @RequestParam(defaultValue = "pending") String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<VideoDTO> videos = adminService.getVideosByAuditPriority(status, priority, pageable);
+        return ApiResponse.success(videos);
+    }
     
     @PutMapping("/videos/{id}/status")
     public ApiResponse<Void> updateVideoStatus(
             @PathVariable Long id,
             @RequestBody StatusRequest request) {
-        
-        boolean success = adminService.updateVideoStatus(id, request.status());
+
+        boolean success = adminService.updateVideoStatusWithReason(
+                id, request.status(), request.violationType(), request.rejectReason());
         if (!success) {
             return ApiResponse.error(404, "视频不存在");
         }
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/users/{userId}/penalty")
+    public ApiResponse<PenaltyDetailDTO> getUserPenaltyDetail(@PathVariable Long userId) {
+        User.PenaltySummary summary = contentGovernanceService.getPenaltySummary(userId);
+        if (summary == null) {
+            return ApiResponse.error(404, "用户不存在");
+        }
+
+        List<PenaltyDetailDTO.ViolationTypeStatDTO> typeStats = summary.getViolationTypeStats() != null
+                ? summary.getViolationTypeStats().stream()
+                .map(arr -> PenaltyDetailDTO.ViolationTypeStatDTO.builder()
+                        .violationType((String) arr[0])
+                        .count(((Number) arr[1]).longValue())
+                        .build())
+                .collect(Collectors.toList())
+                : null;
+
+        PenaltyDetailDTO dto = PenaltyDetailDTO.builder()
+                .penaltyLevel(summary.getPenaltyLevel())
+                .activePenaltyPoints(summary.getActivePenaltyPoints())
+                .totalViolationCount(summary.getTotalViolationCount())
+                .auditPriority(summary.getAuditPriority())
+                .contentVisibility(summary.getContentVisibility())
+                .penaltyExpiresAt(summary.getPenaltyExpiresAt() != null ? summary.getPenaltyExpiresAt().toString() : null)
+                .weekViolationCount(summary.getWeekViolationCount())
+                .monthViolationCount(summary.getMonthViolationCount())
+                .violationTypeStats(typeStats)
+                .build();
+
+        return ApiResponse.success(dto);
+    }
+
+    @GetMapping("/users/{userId}/violations")
+    public ApiResponse<Page<ViolationRecordDTO>> getUserViolations(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ViolationRecordDTO> violations = contentGovernanceService.getUserViolationRecords(userId, pageable)
+                .map(ViolationRecordDTO::fromEntity);
+        return ApiResponse.success(violations);
+    }
+
+    @PostMapping("/users/{userId}/penalty/adjust")
+    public ApiResponse<Void> adjustUserPenalty(
+            @PathVariable Long userId,
+            @RequestBody PenaltyAdjustRequest request) {
+
+        boolean success = contentGovernanceService.manuallyAdjustPenalty(
+                userId, request.pointAdjustment(), request.reason());
+        if (!success) {
+            return ApiResponse.error(404, "用户不存在");
+        }
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/users/{userId}/penalty/reset")
+    public ApiResponse<Void> resetUserPenalty(@PathVariable Long userId) {
+        contentGovernanceService.resetPenalty(userId);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/users/{userId}/penalty/refresh")
+    public ApiResponse<PenaltyDetailDTO> refreshUserPenalty(@PathVariable Long userId) {
+        contentGovernanceService.refreshPenaltyStatus(userId);
+        return getUserPenaltyDetail(userId);
     }
 
     @GetMapping("/appeals")
@@ -92,6 +194,7 @@ public class AdminController {
         }
     }
     
-    public record StatusRequest(String status) {}
+    public record StatusRequest(String status, String violationType, String rejectReason) {}
     public record AppealReviewRequest(String reviewResult, String reviewComment) {}
+    public record PenaltyAdjustRequest(int pointAdjustment, String reason) {}
 }

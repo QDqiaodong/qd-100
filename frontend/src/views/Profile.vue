@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { User, Camera, Edit3, Trash2, Heart, AlertCircle, FileText, Clock, CheckCircle, XCircle, Send } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import { User, Camera, Edit3, Trash2, Heart, AlertCircle, FileText, Send } from 'lucide-vue-next'
 import Navbar from '@/components/Navbar.vue'
 import CalendarWall from '@/components/CalendarWall.vue'
 import { userApi, videoApi } from '@/api'
-import type { User as UserType, Video, VideoAppeal } from '@/types'
+import type { User as UserType, Video } from '@/types'
 
 const user = ref<UserType | null>(null)
 const videos = ref<Video[]>([])
@@ -143,10 +143,6 @@ function formatNumber(num: number): string {
     return (num / 10000).toFixed(1) + 'w'
   }
   return num.toString()
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString('zh-CN')
 }
 
 onMounted(() => {
